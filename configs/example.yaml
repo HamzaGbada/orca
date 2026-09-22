@@ -1,0 +1,33 @@
+# Orca configuration.
+#
+# Location: --config <file>, else $XDG_CONFIG_HOME/orca/config.yaml
+# (default ~/.config/orca/config.yaml). With sudo, $HOME is root's, so pass
+# --config explicitly. Every key is optional; omitted keys keep the defaults
+# shown here. A list that is present replaces the default list. Unknown keys
+# are an error.
+
+# Disk pressure levels for the filesystem holding Docker's data root, as a
+# used percentage computed like df(1).
+disk:
+  warning: 70%
+  critical: 85%
+  emergency: 95%
+
+logs:
+  # Container logs at least this large are reported as large (decimal units).
+  large_threshold: 100MB
+
+# Volume protection. A protected volume is never a GC candidate.
+volumes:
+  # Protect volumes mounted in a container at, or stored on the host at, a
+  # path under one of these directories.
+  protected_paths:
+    - /var/lib/postgresql
+    - /var/lib/mysql
+  # Protect volumes whose name matches one of these glob patterns.
+  protected_patterns:
+    - "*_production"
+    - "*_backup"
+  # Protect every volume of these projects (com.orca.project label, or the
+  # Docker Compose project name).
+  protected_projects: []
