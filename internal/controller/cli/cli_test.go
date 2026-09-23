@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"orca/internal/extensions/engine"
+	"github.com/HamzaGbada/orca/internal/extensions/engine"
 )
 
 func unavailable(context.Context, Options) (*Services, error) {

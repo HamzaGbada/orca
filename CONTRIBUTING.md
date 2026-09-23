@@ -38,7 +38,7 @@ Rules, enforced by `tests/architecture_test.go`:
 
 ## Safety rules
 
-These apply to every change (from `01-developer-guide.md` §6):
+These apply to every change:
 
 1. Never delete running-container dependencies.
 2. Never automatically delete bind-mounted host data.
@@ -57,6 +57,7 @@ Until Sprint 3, Orca has **no** deletion capability at all.
 ## Changes
 
 - Record what each sprint implemented in `docs/history/`.
+- User-visible changes go in `CHANGELOG.md`. Releases: `docs/releasing.md`.
 - One logical change per commit, with a message explaining *why*.
 - New behavior comes with tests. A bug fix starts with a test that reproduces it.
 - Claims about Docker internals in `docs/` state whether they were observed,

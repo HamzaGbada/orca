@@ -21,8 +21,8 @@ import (
 	"github.com/docker/go-units"
 	"go.yaml.in/yaml/v3"
 
-	"orca/internal/modules/pressure"
-	"orca/internal/modules/volumes"
+	"github.com/HamzaGbada/orca/internal/modules/pressure"
+	"github.com/HamzaGbada/orca/internal/modules/volumes"
 )
 
 // DefaultLargeLogBytes is the log size above which a container log is

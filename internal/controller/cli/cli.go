@@ -15,11 +15,11 @@ import (
 	"io"
 	"time"
 
-	"orca/internal/extensions/engine"
-	"orca/internal/modules/discovery"
-	"orca/internal/modules/inventory"
-	"orca/internal/modules/layers"
-	"orca/internal/modules/storage"
+	"github.com/HamzaGbada/orca/internal/extensions/engine"
+	"github.com/HamzaGbada/orca/internal/modules/discovery"
+	"github.com/HamzaGbada/orca/internal/modules/inventory"
+	"github.com/HamzaGbada/orca/internal/modules/layers"
+	"github.com/HamzaGbada/orca/internal/modules/storage"
 )
 
 const (
@@ -29,9 +29,13 @@ const (
 	exitInterrupted = 130
 )
 
-// Version is the Orca version, set at build time with
-// -ldflags "-X orca/internal/controller/cli.Version=<version>".
-var Version = "dev"
+// Version and Commit identify the build. Release builds set them with
+// -ldflags "-X github.com/HamzaGbada/orca/internal/controller/cli.Version=<version>
+// -X github.com/HamzaGbada/orca/internal/controller/cli.Commit=<commit>".
+var (
+	Version = "dev"
+	Commit  = "unknown"
+)
 
 // Services are the module services commands use.
 type Services struct {
@@ -95,7 +99,7 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer, connect C
 		usage(stdout)
 		return exitOK
 	case "version", "--version":
-		fmt.Fprintf(stdout, "orca %s\n", Version)
+		fmt.Fprintf(stdout, "orca %s (commit %s)\n", Version, Commit)
 		return exitOK
 	}
 

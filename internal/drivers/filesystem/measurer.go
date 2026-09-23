@@ -12,7 +12,7 @@ import (
 	"strings"
 	"syscall"
 
-	"orca/internal/extensions/fsmeasure"
+	"github.com/HamzaGbada/orca/internal/extensions/fsmeasure"
 )
 
 // Measurer walks directory trees using only stat/readdir calls.

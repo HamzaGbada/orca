@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"orca/internal/extensions/engine"
+	"github.com/HamzaGbada/orca/internal/extensions/engine"
 )
 
 // ResolveImage finds the image a user reference points to. ref may be a

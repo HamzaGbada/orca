@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"orca/internal/extensions/engine"
-	"orca/internal/modules/project"
+	"github.com/HamzaGbada/orca/internal/extensions/engine"
+	"github.com/HamzaGbada/orca/internal/modules/project"
 )
 
 const hexName = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"

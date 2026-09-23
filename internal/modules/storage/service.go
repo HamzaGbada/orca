@@ -11,8 +11,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"orca/internal/extensions/engine"
-	"orca/internal/extensions/fsmeasure"
+	"github.com/HamzaGbada/orca/internal/extensions/engine"
+	"github.com/HamzaGbada/orca/internal/extensions/fsmeasure"
 )
 
 // DiscrepancyThreshold is the relative difference between measured and

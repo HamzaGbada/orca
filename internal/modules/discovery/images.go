@@ -3,7 +3,7 @@ package discovery
 import (
 	"sort"
 
-	"orca/internal/extensions/engine"
+	"github.com/HamzaGbada/orca/internal/extensions/engine"
 )
 
 // ImageKind classifies an image record by its references.

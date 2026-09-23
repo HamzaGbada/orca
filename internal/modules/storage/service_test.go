@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"orca/internal/extensions/engine"
-	"orca/internal/extensions/fsmeasure"
+	"github.com/HamzaGbada/orca/internal/extensions/engine"
+	"github.com/HamzaGbada/orca/internal/extensions/fsmeasure"
 )
 
 type fakeEngine struct {

@@ -1,0 +1,42 @@
+# Checks every push and pull request. Nothing here publishes anything.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: gofmt
+        run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
+      - name: go mod tidy
+        run: go mod tidy -diff
+      - name: vet
+        run: go vet ./... && go vet -tags integration ./tests/integration/
+      - name: unit and architecture tests
+        run: go test -race ./...
+      # The runner has a Docker daemon: compare Orca with the docker CLI.
+      - name: integration tests
+        run: go test -tags integration -v ./tests/integration/
+
+      - name: shellcheck install.sh
+        run: shellcheck -s sh install.sh
+
+      # Catch release breakage before a tag is pushed.
+      - uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
+        with:
+          version: "~> v2"
+          args: release --snapshot --clean --skip=sign

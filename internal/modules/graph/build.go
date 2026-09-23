@@ -3,8 +3,8 @@ package graph
 import (
 	"strings"
 
-	"orca/internal/extensions/engine"
-	"orca/internal/modules/inventory"
+	"github.com/HamzaGbada/orca/internal/extensions/engine"
+	"github.com/HamzaGbada/orca/internal/modules/inventory"
 )
 
 // FromInventory builds the resource graph of one inventory snapshot.

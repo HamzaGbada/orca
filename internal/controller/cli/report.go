@@ -7,8 +7,8 @@ import (
 	"io"
 	"strings"
 
-	"orca/internal/modules/graph"
-	"orca/internal/modules/report"
+	"github.com/HamzaGbada/orca/internal/modules/graph"
+	"github.com/HamzaGbada/orca/internal/modules/report"
 )
 
 func inventoryCmd(_ *flag.FlagSet) func(context.Context, *env) error {

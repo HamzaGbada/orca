@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"testing"
 
-	"orca/internal/extensions/engine"
+	"github.com/HamzaGbada/orca/internal/extensions/engine"
 )
 
 type fakeEngine struct {

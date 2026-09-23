@@ -6,12 +6,12 @@ package inventory
 import (
 	"time"
 
-	"orca/internal/extensions/engine"
-	"orca/internal/modules/discovery"
-	"orca/internal/modules/layers"
-	"orca/internal/modules/pressure"
-	"orca/internal/modules/project"
-	"orca/internal/modules/volumes"
+	"github.com/HamzaGbada/orca/internal/extensions/engine"
+	"github.com/HamzaGbada/orca/internal/modules/discovery"
+	"github.com/HamzaGbada/orca/internal/modules/layers"
+	"github.com/HamzaGbada/orca/internal/modules/pressure"
+	"github.com/HamzaGbada/orca/internal/modules/project"
+	"github.com/HamzaGbada/orca/internal/modules/volumes"
 )
 
 // Inventory is one snapshot of Docker's resources.

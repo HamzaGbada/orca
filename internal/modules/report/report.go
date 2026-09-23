@@ -7,10 +7,10 @@
 package report
 
 import (
-	"orca/internal/modules/discovery"
-	"orca/internal/modules/inventory"
-	"orca/internal/modules/pressure"
-	"orca/internal/modules/volumes"
+	"github.com/HamzaGbada/orca/internal/modules/discovery"
+	"github.com/HamzaGbada/orca/internal/modules/inventory"
+	"github.com/HamzaGbada/orca/internal/modules/pressure"
+	"github.com/HamzaGbada/orca/internal/modules/volumes"
 )
 
 type Report struct {

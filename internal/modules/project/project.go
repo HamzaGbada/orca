@@ -1,7 +1,7 @@
 // Package project resolves which logical project a resource belongs to.
 package project
 
-import "orca/internal/shared/labels"
+import "github.com/HamzaGbada/orca/internal/shared/labels"
 
 // Source says how a project was determined, from most to least trusted.
 type Source string

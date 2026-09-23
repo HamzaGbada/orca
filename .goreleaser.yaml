@@ -1,0 +1,81 @@
+# GoReleaser configuration: builds, packages, checksums and signs a release.
+# Run by .github/workflows/release.yml on every v* tag. Local dry run:
+#   goreleaser release --snapshot --clean --skip=sign
+# See docs/releasing.md.
+version: 2
+
+project_name: orca
+
+before:
+  hooks:
+    - go mod tidy -diff
+
+builds:
+  - main: ./cmd/orca
+    binary: orca
+    env:
+      - CGO_ENABLED=0
+    # Orca is POSIX-only: the filesystem measurer uses Unix stat/statfs.
+    goos: [linux, darwin]
+    goarch: [amd64, arm64]
+    flags:
+      - -trimpath
+    # Reproducible: file times come from the commit, not the build machine.
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    ldflags:
+      - -s -w
+      - -X github.com/HamzaGbada/orca/internal/controller/cli.Version={{ .Version }}
+      - -X github.com/HamzaGbada/orca/internal/controller/cli.Commit={{ .ShortCommit }}
+
+archives:
+  # Versionless names keep "releases/latest/download/<file>" URLs stable;
+  # install.sh relies on this.
+  - name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+    formats: [tar.gz]
+    files:
+      - LICENSE
+      - README.md
+      - CHANGELOG.md
+      - configs/example.yaml
+    builds_info:
+      mtime: "{{ .CommitDate }}"
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+# Keyless signing with the GitHub Actions OIDC identity (no keys to manage).
+# checksums.txt covers every archive, so signing it covers the release.
+signs:
+  - cmd: cosign
+    signature: "${artifact}.sigstore.json"
+    args:
+      - sign-blob
+      - "--bundle=${signature}"
+      - "${artifact}"
+      - "--yes"
+    artifacts: checksum
+    output: true
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+
+release:
+  github:
+    owner: HamzaGbada
+    name: orca
+  # Tags with a suffix (v0.2.0-rc.1) are published as pre-releases.
+  prerelease: auto
+  footer: |
+    ## Install
+
+    ```sh
+    curl -fsSL https://raw.githubusercontent.com/HamzaGbada/orca/main/install.sh | sh
+    ```
+
+    Verification, manual install and uninstall: [docs/install.md](https://github.com/HamzaGbada/orca/blob/main/docs/install.md).

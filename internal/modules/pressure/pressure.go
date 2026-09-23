@@ -5,7 +5,7 @@ package pressure
 import (
 	"fmt"
 
-	"orca/internal/extensions/fsmeasure"
+	"github.com/HamzaGbada/orca/internal/extensions/fsmeasure"
 )
 
 // Level is the disk pressure level.

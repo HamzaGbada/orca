@@ -11,7 +11,7 @@ import (
 
 	"github.com/docker/go-units"
 
-	"orca/internal/extensions/engine"
+	"github.com/HamzaGbada/orca/internal/extensions/engine"
 )
 
 func newTable(w io.Writer) *tabwriter.Writer {

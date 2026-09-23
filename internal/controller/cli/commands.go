@@ -7,11 +7,11 @@ import (
 	"sort"
 	"strings"
 
-	"orca/internal/extensions/engine"
-	"orca/internal/modules/discovery"
-	"orca/internal/modules/layers"
-	"orca/internal/modules/storage"
-	"orca/internal/modules/volumes"
+	"github.com/HamzaGbada/orca/internal/extensions/engine"
+	"github.com/HamzaGbada/orca/internal/modules/discovery"
+	"github.com/HamzaGbada/orca/internal/modules/layers"
+	"github.com/HamzaGbada/orca/internal/modules/storage"
+	"github.com/HamzaGbada/orca/internal/modules/volumes"
 )
 
 func infoCmd(_ *flag.FlagSet) func(context.Context, *env) error {

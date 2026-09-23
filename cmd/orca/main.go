@@ -7,8 +7,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"orca/internal/bootstrap"
-	"orca/internal/controller/cli"
+	"github.com/HamzaGbada/orca/internal/bootstrap"
+	"github.com/HamzaGbada/orca/internal/controller/cli"
 )
 
 func main() {

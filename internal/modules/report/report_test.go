@@ -3,11 +3,11 @@ package report
 import (
 	"testing"
 
-	"orca/internal/extensions/engine"
-	"orca/internal/modules/discovery"
-	"orca/internal/modules/inventory"
-	"orca/internal/modules/layers"
-	"orca/internal/modules/volumes"
+	"github.com/HamzaGbada/orca/internal/extensions/engine"
+	"github.com/HamzaGbada/orca/internal/modules/discovery"
+	"github.com/HamzaGbada/orca/internal/modules/inventory"
+	"github.com/HamzaGbada/orca/internal/modules/layers"
+	"github.com/HamzaGbada/orca/internal/modules/volumes"
 )
 
 func img(kind discovery.ImageKind, unique int64, containers []string, protected bool) inventory.Image {

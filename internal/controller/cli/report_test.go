@@ -4,9 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	"orca/internal/extensions/fsmeasure"
-	"orca/internal/modules/pressure"
-	"orca/internal/modules/report"
+	"github.com/HamzaGbada/orca/internal/extensions/fsmeasure"
+	"github.com/HamzaGbada/orca/internal/modules/pressure"
+	"github.com/HamzaGbada/orca/internal/modules/report"
 )
 
 func TestReportRendering(t *testing.T) {

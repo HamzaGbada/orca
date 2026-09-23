@@ -5,14 +5,14 @@ package bootstrap
 import (
 	"context"
 
-	"orca/internal/config"
-	"orca/internal/controller/cli"
-	"orca/internal/drivers/docker"
-	"orca/internal/drivers/filesystem"
-	"orca/internal/modules/discovery"
-	"orca/internal/modules/inventory"
-	"orca/internal/modules/layers"
-	"orca/internal/modules/storage"
+	"github.com/HamzaGbada/orca/internal/config"
+	"github.com/HamzaGbada/orca/internal/controller/cli"
+	"github.com/HamzaGbada/orca/internal/drivers/docker"
+	"github.com/HamzaGbada/orca/internal/drivers/filesystem"
+	"github.com/HamzaGbada/orca/internal/modules/discovery"
+	"github.com/HamzaGbada/orca/internal/modules/inventory"
+	"github.com/HamzaGbada/orca/internal/modules/layers"
+	"github.com/HamzaGbada/orca/internal/modules/storage"
 )
 
 // Connect loads the configuration, connects to the Docker daemon and builds

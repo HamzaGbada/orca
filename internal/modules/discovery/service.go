@@ -5,7 +5,7 @@ package discovery
 import (
 	"context"
 
-	"orca/internal/extensions/engine"
+	"github.com/HamzaGbada/orca/internal/extensions/engine"
 )
 
 // Service discovers engine resources. It is read-only.

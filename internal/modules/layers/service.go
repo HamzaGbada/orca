@@ -3,7 +3,7 @@ package layers
 import (
 	"context"
 
-	"orca/internal/extensions/engine"
+	"github.com/HamzaGbada/orca/internal/extensions/engine"
 )
 
 // Service builds the layer index from the engine. It is read-only.

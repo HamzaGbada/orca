@@ -89,12 +89,12 @@ func TestOnlyDockerDriverImportsMoby(t *testing.T) {
 // Only bootstrap (and main) may choose concrete drivers.
 func TestLayerDependencies(t *testing.T) {
 	forbidden := map[string][]string{
-		"internal/modules/":    {"orca/internal/drivers/", "orca/internal/controller/", "orca/internal/bootstrap", "orca/internal/config"},
-		"internal/extensions/": {"orca/internal/drivers/", "orca/internal/modules/", "orca/internal/controller/", "orca/internal/bootstrap"},
-		"internal/drivers/":    {"orca/internal/modules/", "orca/internal/controller/", "orca/internal/bootstrap"},
-		"internal/controller/": {"orca/internal/drivers/", "orca/internal/bootstrap"},
-		"internal/shared/":     {"orca/internal/"},
-		"internal/config/":     {"orca/internal/drivers/", "orca/internal/controller/", "orca/internal/bootstrap"},
+		"internal/modules/":    {"github.com/HamzaGbada/orca/internal/drivers/", "github.com/HamzaGbada/orca/internal/controller/", "github.com/HamzaGbada/orca/internal/bootstrap", "github.com/HamzaGbada/orca/internal/config"},
+		"internal/extensions/": {"github.com/HamzaGbada/orca/internal/drivers/", "github.com/HamzaGbada/orca/internal/modules/", "github.com/HamzaGbada/orca/internal/controller/", "github.com/HamzaGbada/orca/internal/bootstrap"},
+		"internal/drivers/":    {"github.com/HamzaGbada/orca/internal/modules/", "github.com/HamzaGbada/orca/internal/controller/", "github.com/HamzaGbada/orca/internal/bootstrap"},
+		"internal/controller/": {"github.com/HamzaGbada/orca/internal/drivers/", "github.com/HamzaGbada/orca/internal/bootstrap"},
+		"internal/shared/":     {"github.com/HamzaGbada/orca/internal/"},
+		"internal/config/":     {"github.com/HamzaGbada/orca/internal/drivers/", "github.com/HamzaGbada/orca/internal/controller/", "github.com/HamzaGbada/orca/internal/bootstrap"},
 	}
 	for _, f := range sourceFiles(t) {
 		for layer, bans := range forbidden {

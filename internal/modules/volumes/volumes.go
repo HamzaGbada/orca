@@ -12,9 +12,9 @@ import (
 	"path"
 	"strings"
 
-	"orca/internal/extensions/engine"
-	"orca/internal/modules/project"
-	"orca/internal/shared/labels"
+	"github.com/HamzaGbada/orca/internal/extensions/engine"
+	"github.com/HamzaGbada/orca/internal/modules/project"
+	"github.com/HamzaGbada/orca/internal/shared/labels"
 )
 
 // Kind is how a volume was created and who owns its data.

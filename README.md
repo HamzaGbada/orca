@@ -8,11 +8,21 @@ containers, volumes, build cache, logs), work out what is safe and worthwhile
 to reclaim, explain every decision, and reclaim space only through Docker's own
 APIs.
 
-> **Status: Sprint 1 (storage explorer).** Orca is a read-only inspection tool.
+> **Status: v0.1 (storage explorer).** Orca is a read-only inspection tool.
 > It cannot delete, modify or write anything in Docker-managed storage.
-> The roadmap is in `dev-staff/orca-developer-guide/`.
+> Garbage collection (plan, review, execute) comes in later versions.
 
-## Build
+## Install
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/HamzaGbada/orca/main/install.sh | sh
+```
+
+This installs a verified binary (Linux and macOS, amd64/arm64) into
+`/usr/local/bin`. For pinning a version, verifying the signature yourself,
+installing without sudo, or uninstalling, see [`docs/install.md`](docs/install.md).
+
+## Build from source
 
 Requires Go 1.25+ and a Docker Engine on Linux or another Unix. The SDK
 supports Engine API 1.40 and later; Orca is tested on Engine 29.2.1 (API 1.53).
@@ -125,6 +135,8 @@ Docker driver is limited to read-only API calls, and a test enforces this
 
 ## Documentation
 
+- [`docs/install.md`](docs/install.md): installing, verifying, upgrading, uninstalling
+- [`docs/releasing.md`](docs/releasing.md): the release pipeline (maintainers)
 - [`docs/storage-model.md`](docs/storage-model.md): Docker storage internals, as observed
 - [`docs/labels.md`](docs/labels.md): the `com.orca.*` / `orca.gc.*` labels
 - [`docs/volumes.md`](docs/volumes.md): the volume safety model
@@ -132,6 +144,8 @@ Docker driver is limited to read-only API calls, and a test enforces this
 - [`docs/history/`](docs/history/): what each sprint implemented
 - [`docs/adr/`](docs/adr/): architecture decisions
 - [`CONTRIBUTING.md`](CONTRIBUTING.md): development workflow and rules
+- [`SECURITY.md`](SECURITY.md): reporting vulnerabilities
+- [`CHANGELOG.md`](CHANGELOG.md): release notes
 
 ## License
 

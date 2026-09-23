@@ -3,7 +3,7 @@ package pressure
 import (
 	"testing"
 
-	"orca/internal/extensions/fsmeasure"
+	"github.com/HamzaGbada/orca/internal/extensions/fsmeasure"
 )
 
 func TestLevel(t *testing.T) {

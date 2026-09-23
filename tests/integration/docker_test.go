@@ -16,14 +16,14 @@ import (
 	"testing"
 	"time"
 
-	"orca/internal/config"
-	"orca/internal/drivers/docker"
-	"orca/internal/drivers/filesystem"
-	"orca/internal/extensions/engine"
-	"orca/internal/modules/discovery"
-	"orca/internal/modules/graph"
-	"orca/internal/modules/inventory"
-	"orca/internal/modules/layers"
+	"github.com/HamzaGbada/orca/internal/config"
+	"github.com/HamzaGbada/orca/internal/drivers/docker"
+	"github.com/HamzaGbada/orca/internal/drivers/filesystem"
+	"github.com/HamzaGbada/orca/internal/extensions/engine"
+	"github.com/HamzaGbada/orca/internal/modules/discovery"
+	"github.com/HamzaGbada/orca/internal/modules/graph"
+	"github.com/HamzaGbada/orca/internal/modules/inventory"
+	"github.com/HamzaGbada/orca/internal/modules/layers"
 )
 
 func connect(t *testing.T) engine.Engine {

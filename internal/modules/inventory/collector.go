@@ -9,14 +9,14 @@ import (
 	"strings"
 	"time"
 
-	"orca/internal/extensions/engine"
-	"orca/internal/extensions/fsmeasure"
-	"orca/internal/modules/discovery"
-	"orca/internal/modules/layers"
-	"orca/internal/modules/pressure"
-	"orca/internal/modules/project"
-	"orca/internal/modules/volumes"
-	"orca/internal/shared/labels"
+	"github.com/HamzaGbada/orca/internal/extensions/engine"
+	"github.com/HamzaGbada/orca/internal/extensions/fsmeasure"
+	"github.com/HamzaGbada/orca/internal/modules/discovery"
+	"github.com/HamzaGbada/orca/internal/modules/layers"
+	"github.com/HamzaGbada/orca/internal/modules/pressure"
+	"github.com/HamzaGbada/orca/internal/modules/project"
+	"github.com/HamzaGbada/orca/internal/modules/volumes"
+	"github.com/HamzaGbada/orca/internal/shared/labels"
 )
 
 // maxAttempts bounds how often a snapshot is retaken when Docker state
