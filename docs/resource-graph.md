@@ -31,11 +31,20 @@ shared as a file. It follows the system light/dark theme.
 - **Double-click** or **Focus on dependencies**: shows only the resource's
   full dependency chain in both directions. For example, a container's image,
   all its layers, volumes and log.
-- **Search** (<kbd>/</kbd>): by name, ID, tag or any attribute value.
+- **Search** (<kbd>/</kbd>): by name, ID, tag or any attribute value. Exact
+  and prefix name matches come first.
+- **Projects** are drawn as large purple hexagons. Their membership links take
+  the colour of each member (container, image, volume…), and a project's
+  panel lists its members grouped by kind, e.g.
+  *2 containers · 4 images · 3 volumes*.
 - **Encoding**: node size is disk usage (log scale); shape and colour are the
   kind; volumes are coloured by safety state (protected, in use, candidate,
   needs review); stopped containers and dangling images are drawn hollow and
   dashed.
+- **Physics** (button, off by default): when on, the simulation keeps running,
+  so dragging a node pulls its neighbours and the layout re-settles. When
+  off, the layout freezes after the initial placement (no CPU use). Large
+  views (*Everything*) are smoother with it off.
 - **Layouts**: *force* (default) for overviews; *tree* (left to right) reads
   best for a focused chain. With hundreds of unrelated trees (the
   *Everything* view) it becomes a long strip, so use force there.

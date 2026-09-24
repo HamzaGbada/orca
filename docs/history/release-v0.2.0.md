@@ -68,6 +68,23 @@ Orca at remote servers. v0.1.0 had already been published, so these ship as
 - CLI end to end: `--host prod` from a config file over (fake) ssh, unknown
   host names, sorting, DOT and JSON files.
 
+## Follow-up changes (same release)
+
+User feedback on the generated page:
+
+- **Project nodes** are larger (fixed size, bigger outlined label), since
+  they have no size of their own.
+- **Physics button**, off by default: toggles the live simulation, and the
+  choice survives view and filter changes. Verified in Chromium: the canvas
+  stays unchanged with physics off and moves after enabling it.
+- **Member kinds**: membership links take the member's colour; a project's
+  panel lists members labelled and grouped by kind with a summary (verified
+  on the `docker` project: *2 containers · 4 images · 3 volumes*).
+- **Search ranking**, found while testing: a project named `docker` didn't
+  appear in the first 25 results, because many resources mention "docker" in
+  paths. Results now rank exact name, name prefix, name, ID, then
+  attributes.
+
 ## Known limitations
 
 - Tree layout on the *Everything* view is a long strip (hundreds of separate

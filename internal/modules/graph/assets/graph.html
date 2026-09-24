@@ -109,6 +109,9 @@
   .links li button:hover { background: var(--panel-2); }
   .edge-kind { color: var(--muted); font-size: 11px; min-width: 58px; }
   .more { color: var(--muted); padding: 4px 6px; }
+  .summary { color: var(--muted); font-size: 12px; margin: -2px 0 6px; }
+  #physics[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .edge-kind { min-width: 72px; }
   #legend {
     position: absolute; left: 12px; bottom: 12px; padding: 10px 12px; background: var(--panel);
     border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); max-width: 440px; font-size: 12px;
@@ -132,6 +135,7 @@
   </div>
   <button class="btn" id="fit" title="Fit the graph to the window">Fit</button>
   <button class="btn" id="layout" title="Switch between force and left-to-right layout">Force layout</button>
+  <button class="btn" id="physics" aria-pressed="false" title="Keep the simulation running: dragging a node pulls its neighbours (uses CPU on large graphs)">Physics: off</button>
   <button class="btn" id="png" title="Download the current view as PNG">PNG</button>
   <button class="btn" id="json" title="Download the graph data as JSON">JSON</button>
 </header>
@@ -220,7 +224,7 @@
   }
 
   // ---- state -----------------------------------------------------------
-  const state = { view: "overview", kinds: new Set(VIEWS.overview.kinds), project: "", focus: null, selected: null, hierarchical: false };
+  const state = { view: "overview", kinds: new Set(VIEWS.overview.kinds), project: "", focus: null, selected: null, hierarchical: false, physics: false };
 
   const $ = id => document.getElementById(id);
   const el = (tag, props, ...children) => {
@@ -289,6 +293,15 @@
     const color = nodeColor(n);
     const a = n.Attrs || {};
     const faded = (n.Kind === "container" && !LIVE.has(a.state)) || (n.Kind === "image" && a.kind === "dangling");
+    if (n.Kind === "project") {
+      // Projects have no size of their own: draw them large and fixed so
+      // they read as the anchors of their resources.
+      return {
+        id: n.ID, label: shortLabel(n), shape: KINDS.project.shape, size: 30, borderWidth: 3,
+        color: { background: color, border: cssVar("--fg"), highlight: { background: color, border: cssVar("--fg") } },
+        font: { color: cssVar("--fg"), size: 18, face: "system-ui, sans-serif", strokeWidth: 3, strokeColor: cssVar("--bg") },
+      };
+    }
     return {
       id: n.ID,
       label: shortLabel(n),
@@ -307,9 +320,12 @@
   }
 
   function toVisEdge(e) {
+    // Membership links take the colour of the member, so a project's
+    // containers, images and volumes are told apart at a glance.
+    const color = e.Kind === "member" && byId.has(e.To) ? nodeColor(byId.get(e.To)) : EDGES[e.Kind] || "#888";
     return {
       id: e.id, from: e.From, to: e.To,
-      color: { color: EDGES[e.Kind] || "#888", opacity: 0.7 },
+      color: { color, opacity: 0.7 },
       dashes: e.Kind === "member" ? [3, 4] : false,
       width: e.Kind === "member" ? 1 : 1.4,
     };
@@ -363,8 +379,10 @@
       $("loading").textContent = "Laying out… " + Math.round(100 * p.iterations / p.total) + "%";
     });
     network.once("stabilizationIterationsDone", () => {
-      // Freeze the layout: no CPU use afterwards, nodes stay where dragged.
-      network.setOptions({ physics: false });
+      // With physics off, freeze the layout: no CPU use afterwards and nodes
+      // stay where they are dragged. With physics on, the simulation keeps
+      // running and reacts to dragging.
+      if (!state.physics) network.setOptions({ physics: false });
       $("loading").hidden = true;
       network.fit({ animation: false });
       if (state.selected && visible.has(state.selected)) highlight(state.selected);
@@ -445,7 +463,22 @@
   }
 
   // ---- details panel ---------------------------------------------------
-  function linkList(title, items) {
+  const KIND_NAMES = {
+    project: ["project", "projects"], container: ["container", "containers"], image: ["image", "images"],
+    volume: ["volume", "volumes"], bindmount: ["bind mount", "bind mounts"], log: ["log", "logs"],
+    layer: ["layer", "layers"], buildcache: ["build cache", "build cache records"],
+  };
+  const KIND_ORDER = Object.keys(KINDS);
+
+  // kindSummary returns "3 containers · 2 images" for a list of links.
+  function kindSummary(items) {
+    const counts = {};
+    items.forEach(({ id }) => { const k = (byId.get(id) || {}).Kind; if (k) counts[k] = (counts[k] || 0) + 1; });
+    return KIND_ORDER.filter(k => counts[k])
+      .map(k => counts[k] + " " + KIND_NAMES[k][counts[k] === 1 ? 0 : 1]).join(" · ");
+  }
+
+  function linkList(title, items, summary) {
     if (!items.length) return [];
     const ul = el("ul", { className: "links" });
     items.slice(0, 60).forEach(({ kind, id }) => {
@@ -458,7 +491,9 @@
       b.addEventListener("click", () => select(id));
       ul.append(el("li", {}, b));
     });
-    const out = [el("h3", { textContent: `${title} (${items.length})` }), ul];
+    const out = [el("h3", { textContent: `${title} (${items.length})` })];
+    if (summary) out.push(el("div", { className: "summary", textContent: summary }));
+    out.push(ul);
     if (items.length > 60) out.push(el("div", { className: "more", textContent: `+${items.length - 60} more` }));
     return out;
   }
@@ -504,9 +539,18 @@
 
     const outs = (outEdges.get(n.ID) || []), ins = (inEdges.get(n.ID) || []);
     const pick = (list, member, end) => list.filter(e => (e.Kind === "member") === member).map(e => ({ kind: e.Kind, id: e[end] }));
-    p.append(...linkList(n.Kind === "project" ? "Members" : "Depends on", pick(outs, n.Kind === "project", "To")));
+    if (n.Kind === "project") {
+      // Label each member with its kind and group them: containers first,
+      // then images, volumes...
+      const members = pick(outs, true, "To")
+        .map(m => ({ kind: KIND_NAMES[(byId.get(m.id) || {}).Kind || "project"][0], id: m.id, k: (byId.get(m.id) || {}).Kind }))
+        .sort((a, b) => KIND_ORDER.indexOf(a.k) - KIND_ORDER.indexOf(b.k) || shortLabel(byId.get(a.id)).localeCompare(shortLabel(byId.get(b.id))));
+      p.append(...linkList("Members", members, kindSummary(members)));
+    } else {
+      p.append(...linkList("Depends on", pick(outs, false, "To")));
+    }
     p.append(...linkList("Used by", pick(ins, false, "From")));
-    p.append(...linkList("Project", pick(ins, true, "From")));
+    p.append(...linkList("Project", pick(ins, true, "From").map(m => ({ kind: "member of", id: m.id }))));
     p.hidden = false;
   }
 
@@ -516,6 +560,8 @@
     document.querySelectorAll("#kinds input").forEach(i => { i.checked = state.kinds.has(i.value); });
     $("project").value = state.project;
     $("layout").textContent = state.hierarchical ? "Tree layout" : "Force layout";
+    $("physics").textContent = "Physics: " + (state.physics ? "on" : "off");
+    $("physics").setAttribute("aria-pressed", String(state.physics));
   }
 
   Object.entries(VIEWS).forEach(([key, v]) => {
@@ -552,6 +598,11 @@
   $("fit").addEventListener("click", () => network && network.fit({ animation: { duration: 400 } }));
   $("layout").addEventListener("click", () => { state.hierarchical = !state.hierarchical; syncControls(); render(); });
   $("unfocus").addEventListener("click", unfocus);
+  $("physics").addEventListener("click", () => {
+    state.physics = !state.physics;
+    syncControls();
+    if (network) network.setOptions({ physics: { enabled: state.physics } });
+  });
 
   function download(name, url) {
     const a = el("a", { href: url, download: name });
@@ -583,9 +634,19 @@
     const q = search.value.trim().toLowerCase();
     results.replaceChildren();
     if (!q) { results.style.display = "none"; return; }
-    const hits = nodes.filter(n =>
-      (n.Label || "").toLowerCase().includes(q) || n.ID.toLowerCase().includes(q) ||
-      Object.values(n.Attrs || {}).some(v => v.toLowerCase().includes(q))).slice(0, 25);
+    // Best matches first: exact name, name prefix, name, ID, then any
+    // attribute (paths, tags...), which matches many resources.
+    const rank = n => {
+      const l = (n.Label || "").toLowerCase();
+      if (l === q) return 0;
+      if (l.startsWith(q)) return 1;
+      if (l.includes(q)) return 2;
+      if (n.ID.toLowerCase().includes(q)) return 3;
+      return Object.values(n.Attrs || {}).some(v => v.toLowerCase().includes(q)) ? 4 : -1;
+    };
+    const hits = nodes.map(n => [rank(n), n]).filter(([r]) => r >= 0)
+      .sort((a, b) => a[0] - b[0] || KIND_ORDER.indexOf(a[1].Kind) - KIND_ORDER.indexOf(b[1].Kind))
+      .slice(0, 25).map(([, n]) => n);
     hits.forEach(n => {
       const b = el("button", { type: "button" },
         el("span", { className: "dot", style: "background:" + nodeColor(n) }),
@@ -614,7 +675,10 @@
   Object.values(KINDS).forEach(k => lg.append(el("span", {}, el("span", { className: "dot", style: "background:" + k.color }), document.createTextNode(k.label))));
   Object.values(VOLUME_STATES).forEach(s => lg.append(el("span", {}, el("span", { className: "dot", style: "background:" + s.color }), document.createTextNode("volume " + s.label))));
   lg.append(el("span", {}, el("span", { className: "dot", style: "border:2px dashed #3b82f6;background:transparent" }), document.createTextNode("stopped / dangling")));
-  Object.entries(EDGES).forEach(([k, c]) => lg.append(el("span", {}, el("span", { className: "line", style: "background:" + c }), document.createTextNode(k))));
+  // Membership links take the member's colour: show that with a mixed swatch.
+  const memberSwatch = `linear-gradient(90deg, ${KINDS.container.color}, ${KINDS.image.color}, ${KINDS.volume.color})`;
+  Object.entries(EDGES).forEach(([k, c]) => lg.append(el("span", { title: k === "member" ? "project membership, coloured like the member" : "" },
+    el("span", { className: "line", style: "background:" + (k === "member" ? memberSwatch : c) }), document.createTextNode(k))));
 
   const parts = [meta.Host, meta.Docker && "Docker " + meta.Docker, meta.Generated && "generated " + meta.Generated, meta.Orca && "orca " + meta.Orca];
   $("meta").textContent = parts.filter(Boolean).join(" · ");
