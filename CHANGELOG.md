@@ -5,7 +5,20 @@ All notable changes to Orca. The format follows
 [Semantic Versioning](https://semver.org/). Until 1.0.0, minor versions may
 change CLI output and JSON fields.
 
-## [0.2.0] - Unreleased
+## [0.2.1] - 2026-09-24
+
+### Changed
+
+- The graph page draws each resource kind as a meaningful icon in a coloured
+  circle: a shipping container for containers, a package for images, stacked
+  sheets for layers, a storage cylinder for volumes, a folder for bind
+  mounts, a document for logs, a lightning bolt for build cache, a grid for
+  projects. The same icons appear in the legend, filters, search and details
+  panel.
+- Small resources (layers, empty volumes) are drawn large enough for their
+  icon to stay readable, and the legend no longer wraps.
+
+## [0.2.0] - 2026-09-24
 
 Still read-only: nothing here can modify Docker.
 
@@ -16,9 +29,7 @@ Still read-only: nothing here can modify Docker.
   Everything), search, kind and project filters, a details panel with every
   attribute and clickable dependencies, focus on a resource's dependency
   chain, force and tree layouts, a physics toggle to keep the graph live while
-  dragging, a meaningful icon per resource kind (container, image, layer,
-  volume, folder, log, build cache, project), projects drawn large with
-  members labelled and coloured by kind,
+  dragging, projects drawn large with members labelled and coloured by kind,
   PNG/JSON export. Self-contained and offline
   (vis-network 10.1.2 is embedded). `--open` opens it in the browser.
 - `orca graph --format html|json|dot` and `-o/--output <file>` (`-` for
@@ -66,5 +77,6 @@ delete, modify or write anything in Docker-managed storage.
 - Prebuilt binaries for Linux and macOS (amd64, arm64), a verified
   `install.sh`, SHA-256 checksums and Sigstore signatures.
 
+[0.2.1]: https://github.com/HamzaGbada/orca/releases/tag/v0.2.1
 [0.2.0]: https://github.com/HamzaGbada/orca/releases/tag/v0.2.0
 [0.1.0]: https://github.com/HamzaGbada/orca/releases/tag/v0.1.0

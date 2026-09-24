@@ -85,7 +85,8 @@ User feedback on the generated page:
   paths. Results now rank exact name, name prefix, name, ID, then
   attributes.
 
-- **Icons per kind** (after the user asked for meaningful symbols, as in
+- **Icons per kind** (shipped in **v0.2.1**: the v0.2.0 tag had already been
+  pushed from the commit before; a published tag is never moved). After the user asked for meaningful symbols, as in
   their prototype): nodes are `circularImage`s with inline-SVG line icons in a
   coloured circle (shipping container, package, stacked sheets, cylinder,
   folder, document, lightning, grid), reused in the legend, chips, search and
