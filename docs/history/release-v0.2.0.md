@@ -85,6 +85,14 @@ User feedback on the generated page:
   paths. Results now rank exact name, name prefix, name, ID, then
   attributes.
 
+- **Icons per kind** (after the user asked for meaningful symbols, as in
+  their prototype): nodes are `circularImage`s with inline-SVG line icons in a
+  coloured circle (shipping container, package, stacked sheets, cylinder,
+  folder, document, lightning, grid), reused in the legend, chips, search and
+  panel. Verified in Chromium: 29 page icons, none broken; glyphs are legible
+  in focus mode. The minimum node size went from 7 to 12 px so size-less
+  nodes (layers, empty volumes) still show their icon.
+
 ## Known limitations
 
 - Tree layout on the *Everything* view is a long strip (hundreds of separate

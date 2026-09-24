@@ -37,10 +37,15 @@ shared as a file. It follows the system light/dark theme.
   the colour of each member (container, image, volume…), and a project's
   panel lists its members grouped by kind, e.g.
   *2 containers · 4 images · 3 volumes*.
-- **Encoding**: node size is disk usage (log scale); shape and colour are the
-  kind; volumes are coloured by safety state (protected, in use, candidate,
-  needs review); stopped containers and dangling images are drawn hollow and
-  dashed.
+- **Icons**: each kind has its own icon in a coloured circle: a shipping
+  container for containers, a package for images, stacked sheets for layers,
+  a storage cylinder for volumes, a folder for bind mounts, a document for
+  logs, a lightning bolt for build cache, a grid of blocks for projects. The
+  same icons appear in the legend, filters, search and details panel. They
+  are inline SVG, so they look the same everywhere and work offline.
+- **Encoding**: node size is disk usage (log scale); volumes are coloured by
+  safety state (protected, in use, candidate, needs review); stopped
+  containers and dangling images are drawn pale with a dashed ring.
 - **Physics** (button, off by default): when on, the simulation keeps running,
   so dragging a node pulls its neighbours and the layout re-settles. When
   off, the layout freezes after the initial placement (no CPU use). Large

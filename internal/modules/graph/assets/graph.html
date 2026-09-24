@@ -63,7 +63,7 @@
   }
   .chip input { margin: 0; }
   .chip .count { color: var(--muted); font-size: 11px; }
-  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: none; }
+  .icon { display: inline-block; flex: none; vertical-align: middle; }
   select { padding: 4px 8px; border-radius: 7px; border: 1px solid var(--line); background: var(--panel-2); }
   #stats { color: var(--muted); font-size: 12px; margin-left: auto; }
   main { position: relative; flex: 1; min-height: 0; }
@@ -114,7 +114,7 @@
   .edge-kind { min-width: 72px; }
   #legend {
     position: absolute; left: 12px; bottom: 12px; padding: 10px 12px; background: var(--panel);
-    border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); max-width: 440px; font-size: 12px;
+    border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); max-width: 560px; font-size: 12px;
   }
   #legend summary { cursor: pointer; font-weight: 600; }
   .legend-grid { display: grid; grid-template-columns: repeat(3, auto); gap: 4px 14px; margin-top: 8px; }
@@ -168,17 +168,25 @@
   const nodes = data.Nodes || [];
   const edges = data.Edges || [];
 
+  // Each kind is drawn as an icon (a 24x24 line glyph) in a coloured
+  // circle; labels sit below, so node size can encode disk usage.
   const KINDS = {
-    // Every shape draws its label below the node, so node size can encode
-    // disk usage without swallowing the labels.
-    project:    { label: "Projects",    color: "#a855f7", shape: "hexagon" },
-    container:  { label: "Containers",  color: "#3b82f6", shape: "square" },
-    image:      { label: "Images",      color: "#06b6d4", shape: "dot" },
-    volume:     { label: "Volumes",     color: "#f59e0b", shape: "diamond" },
-    bindmount:  { label: "Bind mounts", color: "#eab308", shape: "triangle" },
-    log:        { label: "Logs",        color: "#84cc16", shape: "star" },
-    layer:      { label: "Layers",      color: "#10b981", shape: "dot" },
-    buildcache: { label: "Build cache", color: "#94a3b8", shape: "triangleDown" },
+    project:    { label: "Projects",    color: "#a855f7",   // grid of blocks: a group of resources
+      glyph: '<rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/>' },
+    container:  { label: "Containers",  color: "#3b82f6",   // shipping container
+      glyph: '<rect x="3" y="6" width="18" height="12" rx="1.5"/><path d="M7.5 9v6M12 9v6M16.5 9v6"/>' },
+    image:      { label: "Images",      color: "#06b6d4",   // package
+      glyph: '<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/>' },
+    volume:     { label: "Volumes",     color: "#f59e0b",   // storage cylinder
+      glyph: '<ellipse cx="12" cy="6" rx="7.5" ry="2.8"/><path d="M4.5 6v12c0 1.6 3.4 2.8 7.5 2.8s7.5-1.2 7.5-2.8V6"/><path d="M4.5 12c0 1.6 3.4 2.8 7.5 2.8s7.5-1.2 7.5-2.8"/>' },
+    bindmount:  { label: "Bind mounts", color: "#eab308",   // host folder
+      glyph: '<path d="M3 7.5A1.5 1.5 0 0 1 4.5 6H9l2 2h8.5A1.5 1.5 0 0 1 21 9.5v8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5z"/>' },
+    log:        { label: "Logs",        color: "#84cc16",   // document with lines
+      glyph: '<path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4M9.5 11h6M9.5 14h6M9.5 17h4"/>' },
+    layer:      { label: "Layers",      color: "#10b981",   // stacked sheets
+      glyph: '<path d="M12 4l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/><path d="M3 17l9 5 9-5"/>' },
+    buildcache: { label: "Build cache", color: "#94a3b8",   // lightning: cached build steps
+      glyph: '<path d="M13 3L5 13.5h6L10 21l8-10.5h-6z"/>' },
   };
   const VOLUME_STATES = {
     protected:    { label: "protected",    color: "#22c55e" },
@@ -264,6 +272,38 @@
     return KINDS[n.Kind].color;
   }
 
+  // iconURL renders a kind's glyph in a circle of the given colour as an SVG
+  // data URL. Faded icons (stopped containers, dangling images) use a pale
+  // circle with a coloured glyph. The explicit width/height give the image
+  // an intrinsic size in every browser.
+  const iconCache = new Map();
+  function iconURL(kind, color, faded) {
+    const key = kind + color + faded;
+    if (!iconCache.has(key)) {
+      const bg = faded ? withAlpha(color, 0.18) : color;
+      const fg = faded ? color : "#ffffff";
+      const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 48 48">' +
+        '<circle cx="24" cy="24" r="24" fill="' + bg + '"/>' +
+        '<g transform="translate(10 10) scale(1.1667)" fill="none" stroke="' + fg + '" stroke-width="2" ' +
+        'stroke-linecap="round" stroke-linejoin="round">' + KINDS[kind].glyph + '</g></svg>';
+      iconCache.set(key, "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg));
+    }
+    return iconCache.get(key);
+  }
+
+  function isFaded(n) {
+    const a = n.Attrs || {};
+    return (n.Kind === "container" && !LIVE.has(a.state)) || (n.Kind === "image" && a.kind === "dangling");
+  }
+
+  // icon returns an <img> of a resource's (or kind's) icon for the page.
+  function icon(n, px) {
+    return el("img", { className: "icon", src: iconURL(n.Kind, nodeColor(n), isFaded(n)), width: px || 16, height: px || 16, alt: "" });
+  }
+  function kindIcon(kind, color, faded, px) {
+    return el("img", { className: "icon", src: iconURL(kind, color || KINDS[kind].color, !!faded), width: px || 16, height: px || 16, alt: "" });
+  }
+
   function withAlpha(hex, a) {
     const v = parseInt(hex.slice(1), 16);
     return `rgba(${v >> 16}, ${(v >> 8) & 255}, ${v & 255}, ${a})`;
@@ -291,32 +331,32 @@
 
   function toVisNode(n) {
     const color = nodeColor(n);
-    const a = n.Attrs || {};
-    const faded = (n.Kind === "container" && !LIVE.has(a.state)) || (n.Kind === "image" && a.kind === "dangling");
-    if (n.Kind === "project") {
-      // Projects have no size of their own: draw them large and fixed so
-      // they read as the anchors of their resources.
-      return {
-        id: n.ID, label: shortLabel(n), shape: KINDS.project.shape, size: 30, borderWidth: 3,
-        color: { background: color, border: cssVar("--fg"), highlight: { background: color, border: cssVar("--fg") } },
-        font: { color: cssVar("--fg"), size: 18, face: "system-ui, sans-serif", strokeWidth: 3, strokeColor: cssVar("--bg") },
-      };
-    }
-    return {
+    const faded = isFaded(n);
+    const base = {
       id: n.ID,
       label: shortLabel(n),
-      shape: KINDS[n.Kind].shape,
-      value: Math.max(n.Size || 0, 1),
+      shape: "circularImage",
+      image: iconURL(n.Kind, color, faded),
       color: {
-        background: faded ? withAlpha(color, 0.25) : color,
+        background: faded ? withAlpha(color, 0.18) : color,
         border: color,
         highlight: { background: color, border: cssVar("--fg") },
         hover: { background: color, border: cssVar("--fg") },
       },
-      borderWidth: faded ? 2 : 1,
+      borderWidth: 2,
+      borderWidthSelected: 4,
       shapeProperties: { borderDashes: faded ? [5, 4] : false },
       font: { color: cssVar("--fg") },
     };
+    if (n.Kind === "project") {
+      // Projects have no size of their own: draw them large and fixed so
+      // they read as the anchors of their resources.
+      return Object.assign(base, {
+        size: 30, borderWidth: 3,
+        font: { color: cssVar("--fg"), size: 18, face: "system-ui, sans-serif", strokeWidth: 3, strokeColor: cssVar("--bg") },
+      });
+    }
+    return Object.assign(base, { value: Math.max(n.Size || 0, 1) });
   }
 
   function toVisEdge(e) {
@@ -340,7 +380,8 @@
       autoResize: true,
       nodes: {
         font: { face: "system-ui, sans-serif", size: 13 },
-        scaling: { min: 7, max: 30, label: { enabled: false }, customScalingFunction: logScale },
+        // min keeps the smallest icons recognisable; size still grows with disk usage.
+        scaling: { min: 12, max: 34, label: { enabled: false }, customScalingFunction: logScale },
       },
       edges: {
         arrows: { to: { enabled: true, scaleFactor: 0.45 } },
@@ -485,7 +526,7 @@
       const t = byId.get(id);
       if (!t) return;
       const b = el("button", { type: "button", title: t.ID },
-        el("span", { className: "dot", style: "background:" + nodeColor(t) }),
+        icon(t),
         el("span", { className: "edge-kind", textContent: kind }),
         el("span", { textContent: shortLabel(t) }));
       b.addEventListener("click", () => select(id));
@@ -505,7 +546,7 @@
     close.addEventListener("click", clearSelection);
     p.append(el("div", { className: "panel-head" },
       el("span", { className: "kind-badge" },
-        el("span", { className: "dot", style: "background:" + nodeColor(n) }),
+        icon(n, 22),
         document.createTextNode(n.Kind)),
       close));
     p.append(el("h2", { textContent: n.Label || n.ID }));
@@ -585,7 +626,7 @@
       render();
     });
     $("kinds").append(el("label", { className: "chip" }, input,
-      el("span", { className: "dot", style: "background:" + k.color }),
+      kindIcon(kind),
       document.createTextNode(k.label),
       el("span", { className: "count", textContent: String(counts[kind] || 0) })));
   });
@@ -649,7 +690,7 @@
       .slice(0, 25).map(([, n]) => n);
     hits.forEach(n => {
       const b = el("button", { type: "button" },
-        el("span", { className: "dot", style: "background:" + nodeColor(n) }),
+        icon(n),
         el("span", { className: "edge-kind", textContent: n.Kind }),
         el("span", { textContent: shortLabel(n) }));
       b.addEventListener("click", () => { results.style.display = "none"; search.value = ""; select(n.ID); });
@@ -672,9 +713,9 @@
 
   // Legend
   const lg = $("legendgrid");
-  Object.values(KINDS).forEach(k => lg.append(el("span", {}, el("span", { className: "dot", style: "background:" + k.color }), document.createTextNode(k.label))));
-  Object.values(VOLUME_STATES).forEach(s => lg.append(el("span", {}, el("span", { className: "dot", style: "background:" + s.color }), document.createTextNode("volume " + s.label))));
-  lg.append(el("span", {}, el("span", { className: "dot", style: "border:2px dashed #3b82f6;background:transparent" }), document.createTextNode("stopped / dangling")));
+  Object.entries(KINDS).forEach(([kind, k]) => lg.append(el("span", {}, kindIcon(kind, null, false, 18), document.createTextNode(k.label))));
+  Object.values(VOLUME_STATES).forEach(s => lg.append(el("span", {}, kindIcon("volume", s.color, false, 18), document.createTextNode("volume " + s.label))));
+  lg.append(el("span", {}, kindIcon("container", null, true, 18), document.createTextNode("stopped / dangling")));
   // Membership links take the member's colour: show that with a mixed swatch.
   const memberSwatch = `linear-gradient(90deg, ${KINDS.container.color}, ${KINDS.image.color}, ${KINDS.volume.color})`;
   Object.entries(EDGES).forEach(([k, c]) => lg.append(el("span", { title: k === "member" ? "project membership, coloured like the member" : "" },

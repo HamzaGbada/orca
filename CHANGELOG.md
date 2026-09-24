@@ -16,7 +16,9 @@ Still read-only: nothing here can modify Docker.
   Everything), search, kind and project filters, a details panel with every
   attribute and clickable dependencies, focus on a resource's dependency
   chain, force and tree layouts, a physics toggle to keep the graph live while
-  dragging, projects drawn large with members labelled and coloured by kind,
+  dragging, a meaningful icon per resource kind (container, image, layer,
+  volume, folder, log, build cache, project), projects drawn large with
+  members labelled and coloured by kind,
   PNG/JSON export. Self-contained and offline
   (vis-network 10.1.2 is embedded). `--open` opens it in the browser.
 - `orca graph --format html|json|dot` and `-o/--output <file>` (`-` for
