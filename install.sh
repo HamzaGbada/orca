@@ -1,7 +1,7 @@
 #!/bin/sh
 # Orca installer: https://github.com/HamzaGbada/orca
 #
-#   curl -fsSL https://raw.githubusercontent.com/HamzaGbada/orca/main/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/HamzaGbada/orca/master/install.sh | sh
 #
 # Downloads a release binary, verifies its SHA-256 checksum (always) and the
 # Sigstore signature of the checksums (when cosign is installed), then installs
@@ -167,7 +167,7 @@ main() {
 	if [ -n "$found" ] && [ "$found" != "$INSTALL_DIR/orca" ]; then
 		say "note: another orca at $found comes first in your PATH"
 	fi
-	say "next: orca report   (docs: https://github.com/$REPO/blob/main/docs/install.md)"
+	say "next: orca report   (docs: https://github.com/$REPO/blob/master/docs/install.md)"
 }
 
 main "$@"
