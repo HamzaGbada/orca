@@ -44,6 +44,9 @@ type Inventory struct {
 }
 
 type Host struct {
+	// Address is the daemon the snapshot was taken from, e.g.
+	// unix:///var/run/docker.sock or ssh://admin@prod.example.com.
+	Address       string
 	ServerVersion string
 	APIVersion    string
 	StorageDriver string

@@ -83,7 +83,7 @@ var commands = []command{
 	{"storage", "Show storage driver, data root and overlay2 usage", storageCmd},
 	{"report", "Show the storage report and potential reclaim", reportCmd},
 	{"inventory", "Write the full resource inventory as JSON", inventoryCmd},
-	{"graph", "Write the resource dependency graph (DOT, or JSON with --json)", graphCmd},
+	{"graph", "Write the dependency graph as an interactive HTML page, JSON or DOT", graphCmd},
 }
 
 // Run executes the command line args (without the program name) and returns
@@ -117,7 +117,7 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer, connect C
 
 	fs := flag.NewFlagSet("orca "+cmd.name, flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	host := fs.String("host", "", "Docker daemon `address` (default $DOCKER_HOST or unix:///var/run/docker.sock)")
+	host := fs.String("host", "", "Docker daemon URL (unix://, tcp://, ssh://) or a `name` from the config's hosts (default $DOCKER_HOST or unix:///var/run/docker.sock)")
 	timeout := fs.Duration("timeout", 5*time.Second, "daemon connection `timeout`")
 	configPath := fs.String("config", "", "configuration `file` (default $XDG_CONFIG_HOME/orca/config.yaml)")
 	asJSON := fs.Bool("json", false, "write JSON to stdout")
@@ -157,7 +157,7 @@ func fail(ctx context.Context, stderr io.Writer, err error) int {
 		return exitUsage
 	case errors.Is(err, engine.ErrUnavailable):
 		fmt.Fprintf(stderr, "orca: %v\n", err)
-		fmt.Fprintln(stderr, "orca: is the Docker daemon running, and can this user access its socket (docker group)?")
+		fmt.Fprintln(stderr, "orca: is the Docker daemon running and reachable? Local: can this user access its socket (docker group)? Remote: check the address and your ssh/TLS credentials.")
 		return exitError
 	default:
 		fmt.Fprintf(stderr, "orca: %v\n", err)

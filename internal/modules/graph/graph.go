@@ -51,6 +51,9 @@ type Node struct {
 	Label string
 	// Size in bytes; -1 when unknown.
 	Size int64
+	// Attrs are human-readable details (state, tags, safety reasons...),
+	// shown by the HTML view and available to tools reading the JSON.
+	Attrs map[string]string `json:",omitempty"`
 }
 
 // Edge is a directed relationship From -> To.

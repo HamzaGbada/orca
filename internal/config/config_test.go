@@ -124,3 +124,48 @@ func TestLoad(t *testing.T) {
 		t.Errorf("invalid file error should name the file, got %v", err)
 	}
 }
+
+func TestParseHosts(t *testing.T) {
+	home, _ := os.UserHomeDir()
+	cfg, err := Parse([]byte(`
+hosts:
+  prod:
+    url: ssh://admin@prod.example.com:2222
+  build:
+    url: tcp://build.example.com:2376
+    tls_cert_path: ~/.docker/build
+  local:
+    url: unix:///var/run/docker.sock
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]Host{
+		"prod":  {URL: "ssh://admin@prod.example.com:2222"},
+		"build": {URL: "tcp://build.example.com:2376", TLSCertPath: filepath.Join(home, ".docker/build")},
+		"local": {URL: "unix:///var/run/docker.sock"},
+	}
+	if !reflect.DeepEqual(cfg.Hosts, want) {
+		t.Errorf("hosts = %+v, want %+v", cfg.Hosts, want)
+	}
+}
+
+func TestParseHostsRejects(t *testing.T) {
+	tests := map[string]string{
+		"missing url":        "hosts:\n  a: {}\n",
+		"bad scheme":         "hosts:\n  a: {url: http://x}\n",
+		"no scheme":          "hosts:\n  a: {url: prod.example.com}\n",
+		"ssh option as host": "hosts:\n  a: {url: 'ssh://-oProxyCommand=evil'}\n",
+		"ssh with path":      "hosts:\n  a: {url: ssh://h/var/run/docker.sock}\n",
+		"tls on ssh":         "hosts:\n  a: {url: ssh://h, tls_cert_path: /c}\n",
+		"tcp without host":   "hosts:\n  a: {url: 'tcp://'}\n",
+		"unix without path":  "hosts:\n  a: {url: 'unix://'}\n",
+		"name that is a URL": "hosts:\n  'ssh://h': {url: ssh://h}\n",
+		"unknown host field": "hosts:\n  a: {url: ssh://h, user: x}\n",
+	}
+	for name, data := range tests {
+		if _, err := Parse([]byte(data)); err == nil {
+			t.Errorf("%s: expected an error", name)
+		}
+	}
+}

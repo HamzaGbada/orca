@@ -9,7 +9,9 @@ package integration
 import (
 	"context"
 	"math"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -30,7 +32,7 @@ func connect(t *testing.T) engine.Engine {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	c, err := docker.Connect(ctx, "", 5*time.Second)
+	c, err := docker.Connect(ctx, docker.Target{}, 5*time.Second)
 	if err != nil {
 		t.Skipf("no Docker daemon: %v", err)
 	}
@@ -197,5 +199,92 @@ func TestDiskPressureMatchesDf(t *testing.T) {
 	}
 	if got := int(math.Ceil(inv.Disk.UsedPercent)); got < dfPct-1 || got > dfPct+1 {
 		t.Errorf("orca %.2f%% (ceil %d), df %d%%", inv.Disk.UsedPercent, got, dfPct)
+	}
+}
+
+// fakeSSH puts an `ssh` on PATH that records its arguments and then runs
+// `docker system dial-stdio` locally, so the ssh:// transport is exercised
+// end to end against the local daemon without a real remote host.
+func fakeSSH(t *testing.T) (argsFile string) {
+	t.Helper()
+	if _, err := exec.LookPath("docker"); err != nil {
+		t.Skip("docker CLI not installed")
+	}
+	dir := t.TempDir()
+	argsFile = filepath.Join(dir, "args")
+	// DOCKER_HOST is cleared so the local docker CLI does not dial back
+	// through this fake ssh when a test sets DOCKER_HOST=ssh://.
+	script := "#!/bin/sh\nprintf '%s\\n' \"$@\" > " + argsFile + "\nunset DOCKER_HOST\nexec docker system dial-stdio\n"
+	if err := os.WriteFile(filepath.Join(dir, "ssh"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	return argsFile
+}
+
+func TestSSHTransport(t *testing.T) {
+	argsFile := fakeSSH(t)
+	const target = "ssh://tester@fake-host:2222"
+
+	c, err := docker.Connect(context.Background(), docker.Target{URL: target}, 20*time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+
+	info, err := c.Info(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.ServerVersion == "" || info.Host != target || info.Local() {
+		t.Errorf("info over ssh: version=%q host=%q local=%t", info.ServerVersion, info.Host, info.Local())
+	}
+	if _, err := c.Images(context.Background()); err != nil {
+		t.Errorf("list images over ssh: %v", err)
+	}
+
+	raw, err := os.ReadFile(argsFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	args := string(raw)
+	for _, want := range []string{"-l\ntester\n", "-p\n2222\n", "--\nfake-host\n", "docker system dial-stdio"} {
+		if !strings.Contains(args, want) {
+			t.Errorf("ssh args %q missing %q", args, want)
+		}
+	}
+}
+
+func TestSSHFromDockerHostEnv(t *testing.T) {
+	fakeSSH(t)
+	t.Setenv("DOCKER_HOST", "ssh://fake-host")
+
+	c, err := docker.Connect(context.Background(), docker.Target{}, 20*time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	if info, err := c.Info(context.Background()); err != nil || info.Host != "ssh://fake-host" {
+		t.Errorf("DOCKER_HOST=ssh://: host=%q err=%v", info.Host, err)
+	}
+}
+
+func TestInventoryOverSSHSkipsLocalDisk(t *testing.T) {
+	fakeSSH(t)
+	c, err := docker.Connect(context.Background(), docker.Target{URL: "ssh://fake-host"}, 20*time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+
+	cfg := config.Default()
+	inv, err := inventory.NewCollector(c, filesystem.Measurer{}, inventory.Options{
+		Disk: cfg.Disk, LargeLogBytes: cfg.LargeLogBytes, Volumes: cfg.Volumes,
+	}).Collect(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if inv.Disk != nil || inv.Host.Address != "ssh://fake-host" {
+		t.Errorf("remote inventory: disk=%v address=%q; the local disk must not be measured", inv.Disk, inv.Host.Address)
 	}
 }

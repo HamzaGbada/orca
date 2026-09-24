@@ -82,6 +82,7 @@ func (c *Collector) collectOnce(ctx context.Context) (Inventory, error) {
 		return inv, err
 	}
 	inv.Host = Host{
+		Address:       info.Host,
 		ServerVersion: info.ServerVersion,
 		APIVersion:    info.APIVersion,
 		StorageDriver: info.StorageDriver,

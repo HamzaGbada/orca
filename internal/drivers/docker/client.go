@@ -8,8 +8,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
+	"github.com/docker/cli/cli/connhelper"
 	"github.com/moby/moby/client"
 
 	"github.com/HamzaGbada/orca/internal/extensions/engine"
@@ -26,20 +30,61 @@ type Client struct {
 
 var _ engine.Engine = (*Client)(nil)
 
+// Target selects a Docker daemon.
+type Target struct {
+	// URL is unix://, tcp:// or ssh://[user@]host[:port]. Empty uses
+	// DOCKER_HOST when set, otherwise DefaultHost.
+	URL string
+	// TLSCertPath is a directory with ca.pem, cert.pem and key.pem for a
+	// TLS-protected tcp:// daemon. Empty keeps DOCKER_CERT_PATH behaviour.
+	TLSCertPath string
+}
+
 // Connect creates a client and verifies the daemon is reachable within
-// timeout, negotiating the API version with the daemon.
+// timeout, negotiating the API version with the daemon. Failure to reach the
+// daemon is reported as a wrapped engine.ErrUnavailable.
 //
-// An empty host uses DOCKER_HOST when set, otherwise DefaultHost. Failure to
-// reach the daemon is reported as a wrapped engine.ErrUnavailable.
-func Connect(ctx context.Context, host string, timeout time.Duration) (*Client, error) {
-	opts := []client.Opt{client.FromEnv, client.WithAPIVersionNegotiation()}
-	if host != "" {
-		opts = append(opts, client.WithHost(host))
+// ssh:// targets run `ssh [-l user] [-p port] -- host docker system
+// dial-stdio`, like the docker CLI: the remote daemon needs no open port,
+// and authentication is whatever the user's ssh setup provides.
+func Connect(ctx context.Context, t Target, timeout time.Duration) (*Client, error) {
+	url := t.URL
+	if url == "" {
+		url = os.Getenv(client.EnvOverrideHost)
+	}
+
+	var opts []client.Opt
+	display := url
+	if strings.HasPrefix(url, "ssh://") {
+		helper, err := connhelper.GetConnectionHelper(url)
+		if err != nil {
+			return nil, fmt.Errorf("invalid ssh host %s: %w", url, err)
+		}
+		opts = []client.Opt{
+			client.WithAPIVersionFromEnv(),
+			client.WithHost(helper.Host),
+			client.WithDialContext(helper.Dialer),
+			client.WithAPIVersionNegotiation(),
+		}
+	} else {
+		opts = []client.Opt{client.FromEnv, client.WithAPIVersionNegotiation()}
+		if t.URL != "" {
+			opts = append(opts, client.WithHost(t.URL))
+		}
+		if t.TLSCertPath != "" {
+			opts = append(opts, client.WithTLSClientConfig(
+				filepath.Join(t.TLSCertPath, "ca.pem"),
+				filepath.Join(t.TLSCertPath, "cert.pem"),
+				filepath.Join(t.TLSCertPath, "key.pem")))
+		}
 	}
 
 	api, err := client.New(opts...)
 	if err != nil {
 		return nil, fmt.Errorf("initialize docker client: %w", err)
+	}
+	if display == "" {
+		display = api.DaemonHost()
 	}
 
 	pingCtx, cancel := context.WithTimeout(ctx, timeout)
@@ -51,12 +96,12 @@ func Connect(ctx context.Context, host string, timeout time.Duration) (*Client, 
 			return nil, ctx.Err()
 		}
 		if errors.Is(pingCtx.Err(), context.DeadlineExceeded) {
-			return nil, fmt.Errorf("%w: no response from %s within %s", engine.ErrUnavailable, api.DaemonHost(), timeout)
+			return nil, fmt.Errorf("%w: no response from %s within %s", engine.ErrUnavailable, display, timeout)
 		}
-		return nil, fmt.Errorf("%w: %v", engine.ErrUnavailable, err)
+		return nil, fmt.Errorf("%w: %s: %v", engine.ErrUnavailable, display, err)
 	}
 
-	return &Client{api: api, host: api.DaemonHost()}, nil
+	return &Client{api: api, host: display}, nil
 }
 
 func (c *Client) Close() error {

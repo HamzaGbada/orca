@@ -132,9 +132,9 @@ If `docker ps` works without sudo, `orca` does too.
 sudo usermod -aG docker "$USER"   # then log out and back in
 ```
 
-It honours `DOCKER_HOST` and `--host` (e.g. `ssh://…`, `tcp://…`). With a
-remote daemon, disk-pressure and filesystem measurements are skipped, because
-the data root isn't on your machine.
+It honours `DOCKER_HOST` and `--host`. To inspect other machines (over SSH, or
+TCP with TLS, or by a name from your configuration), see
+[remote.md](remote.md).
 
 **Root-only measurements.** Without root, Orca reports everything the Docker
 API exposes. Container log sizes, volume inode counts and `orca storage`'s

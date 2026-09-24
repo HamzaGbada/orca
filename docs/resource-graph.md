@@ -1,4 +1,4 @@
-# Resource Graph (v0)
+# Resource Graph
 
 `internal/modules/graph` models Docker's resources as a directed graph built
 from one inventory snapshot. An edge **A → B means "A depends on B"**: B can't
@@ -6,10 +6,44 @@ be removed while A exists. Sprint 2's mark phase walks these edges from the GC
 roots.
 
 ```sh
-orca graph                         # Graphviz DOT
-orca graph --json                  # {"Nodes": [...], "Edges": [...]}
-orca graph | dot -Tsvg > g.svg     # slow for more than ~500 nodes
+orca graph                           # writes orca-graph.html and prints a file:// link
+orca graph --open                    # ... and opens it in your browser
+orca graph --format json -o g.json   # {"Nodes": [...], "Edges": [...]} for other tools
+orca graph --format dot -o g.dot     # Graphviz: dot -Tsvg g.dot > g.svg (slow beyond ~500 nodes)
+orca graph --json | jq '.Nodes | length'   # JSON on stdout (-o - works for every format)
 ```
+
+## Interactive view
+
+The HTML page is a single self-contained file (about 2 MB): the graph data
+plus [vis-network](https://github.com/visjs/vis-network), which is embedded in
+the orca binary. It works offline, loads nothing from the network, and can be
+shared as a file. It follows the system light/dark theme.
+
+- **Views**: *Overview* (projects, containers, images without intermediate
+  build steps, volumes, bind mounts; the default), *Storage* (containers,
+  volumes, bind mounts, logs), *Images & layers*, *Build cache*, *Everything*.
+  Kind checkboxes and the project selector refine any view.
+- **Click a resource**: it's highlighted with its direct dependencies and
+  dependents, and a side panel shows its size, every attribute (state,
+  safety reasons, tags, timestamps…), what it depends on and what uses it.
+  Entries in the panel are clickable; hidden kinds are revealed as needed.
+- **Double-click** or **Focus on dependencies**: shows only the resource's
+  full dependency chain in both directions. For example, a container's image,
+  all its layers, volumes and log.
+- **Search** (<kbd>/</kbd>): by name, ID, tag or any attribute value.
+- **Encoding**: node size is disk usage (log scale); shape and colour are the
+  kind; volumes are coloured by safety state (protected, in use, candidate,
+  needs review); stopped containers and dangling images are drawn hollow and
+  dashed.
+- **Layouts**: *force* (default) for overviews; *tree* (left to right) reads
+  best for a focused chain. With hundreds of unrelated trees (the
+  *Everything* view) it becomes a long strip, so use force there.
+- **Export**: PNG of the current view, JSON of the whole graph.
+
+Everything shown comes from the embedded JSON and is inserted as text, never
+as HTML, so hostile container names or image labels cannot inject content
+(tested in `internal/modules/graph/html_test.go`).
 
 ## Nodes
 
@@ -25,6 +59,11 @@ IDs are `<kind>:<resource id>`, e.g. `image:sha256:…`, `volume:pgdata`.
 | `log` | json-file container log | log size (root) |
 | `buildcache` | build cache record | record size |
 | `project` | project name | – |
+
+Each node also carries `Attrs`, a string map of human-readable details (for
+example `state`, `why`, `tags`, `created`, `last used`, `project`). Empty
+values are omitted. They are shown by the HTML panel and included in the JSON
+output.
 
 ## Edges
 

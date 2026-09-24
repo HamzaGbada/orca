@@ -42,9 +42,12 @@ orca <command> [flags]
 
   info        Show Docker daemon connection and server information
   containers  List containers            [--running | --stopped] [--size]
+                                         [--sort created|name|size|state] [--reverse]
   images      List images and their classification
                                          [--dangling] [--untagged] [--used | --unused]
+                                         [--sort created|name|size] [--reverse]
   volumes     List volumes with their safety classification
+                                         [--sort name|size|state|created|last-used] [--reverse]
   networks    List networks
   layers      Show image layers, ChainIDs and shared layers
                                          [--image <ref>] [--all]
@@ -52,10 +55,12 @@ orca <command> [flags]
                                          [--no-measure]
   report      Storage report and potential reclaim [--summary]
   inventory   Full resource inventory as JSON
-  graph       Resource dependency graph (DOT, or --json)
+  graph       Dependency graph: interactive HTML page (default), JSON or DOT
+                                         [--format html|json|dot] [-o <file>] [--open]
   version     Print the Orca version
 
-Common flags: --host <address>  daemon address (default $DOCKER_HOST, then unix:///var/run/docker.sock)
+Common flags: --host <host>     daemon URL (unix://, tcp://, ssh://) or a name from the
+                                config's hosts (default $DOCKER_HOST, then unix:///var/run/docker.sock)
               --timeout <dur>   connection timeout (default 5s)
               --config <file>   configuration (default $XDG_CONFIG_HOME/orca/config.yaml)
               --json            JSON on stdout
@@ -66,9 +71,12 @@ Examples:
 ```sh
 orca report                             # what Docker uses and what could be reclaimed
 orca report --summary                   # the short version
-orca volumes                            # every volume: kind, safety state, size, reason
+orca volumes --sort size                # every volume, largest first: kind, safety state, reason
+orca volumes --sort last-used           # least recently used first
+orca graph --open                       # interactive dependency graph in your browser
+orca graph --format dot -o g.dot        # the same graph for Graphviz; --format json for tools
+orca report --host prod                 # a remote server from the config (ssh://, tcp:// + TLS)
 orca inventory | jq '.Containers[] | select(.Log.Unlimited) | .Name'
-orca graph | dot -Tsvg > graph.svg      # dependency graph (Graphviz; slow on big hosts)
 orca images --dangling                  # untagged images with no child image
 orca images --unused --json | jq length # images no container was created from
 orca layers                             # layers shared by more than one image
@@ -96,6 +104,8 @@ volumes:
   protected_paths:    [/var/lib/postgresql, /var/lib/mysql]
   protected_patterns: ["*_production", "*_backup"]
   protected_projects: []
+hosts:                                   # optional: --host <name>, see docs/remote.md
+  prod: { url: ssh://admin@prod.example.com }
 ```
 
 Tables go to stdout and summaries/diagnostics to stderr, so output pipes
@@ -140,7 +150,8 @@ Docker driver is limited to read-only API calls, and a test enforces this
 - [`docs/storage-model.md`](docs/storage-model.md): Docker storage internals, as observed
 - [`docs/labels.md`](docs/labels.md): the `com.orca.*` / `orca.gc.*` labels
 - [`docs/volumes.md`](docs/volumes.md): the volume safety model
-- [`docs/resource-graph.md`](docs/resource-graph.md): graph nodes, edges and traversal
+- [`docs/resource-graph.md`](docs/resource-graph.md): the dependency graph and its interactive view
+- [`docs/remote.md`](docs/remote.md): inspecting remote Docker hosts (SSH, TLS)
 - [`docs/history/`](docs/history/): what each sprint implemented
 - [`docs/adr/`](docs/adr/): architecture decisions
 - [`CONTRIBUTING.md`](CONTRIBUTING.md): development workflow and rules

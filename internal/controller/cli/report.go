@@ -7,7 +7,6 @@ import (
 	"io"
 	"strings"
 
-	"github.com/HamzaGbada/orca/internal/modules/graph"
 	"github.com/HamzaGbada/orca/internal/modules/report"
 )
 
@@ -19,24 +18,6 @@ func inventoryCmd(_ *flag.FlagSet) func(context.Context, *env) error {
 		}
 		printWarnings(e, inv.Warnings)
 		return writeJSON(e.stdout, inv)
-	}
-}
-
-func graphCmd(_ *flag.FlagSet) func(context.Context, *env) error {
-	return func(ctx context.Context, e *env) error {
-		inv, err := e.svc.Inventory.Collect(ctx)
-		if err != nil {
-			return err
-		}
-		g, err := graph.FromInventory(inv)
-		if err != nil {
-			return err
-		}
-		printWarnings(e, inv.Warnings)
-		if e.json {
-			return g.WriteJSON(e.stdout)
-		}
-		return g.WriteDOT(e.stdout)
 	}
 }
 

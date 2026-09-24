@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -37,6 +38,17 @@ type Config struct {
 	Disk          pressure.Thresholds
 	LargeLogBytes int64
 	Volumes       volumes.Policy
+	// Hosts are named Docker daemons, selected with --host <name>.
+	Hosts map[string]Host
+}
+
+// Host is a named Docker daemon.
+type Host struct {
+	// URL is unix:///path, tcp://host:port or ssh://[user@]host[:port].
+	URL string `yaml:"url"`
+	// TLSCertPath is a directory holding ca.pem, cert.pem and key.pem for a
+	// TLS-protected tcp:// daemon (like DOCKER_CERT_PATH). "~/" is expanded.
+	TLSCertPath string `yaml:"tls_cert_path"`
 }
 
 // Default returns the built-in configuration.
@@ -66,6 +78,7 @@ type file struct {
 		ProtectedPatterns *[]string `yaml:"protected_patterns"`
 		ProtectedProjects *[]string `yaml:"protected_projects"`
 	} `yaml:"volumes"`
+	Hosts map[string]Host `yaml:"hosts"`
 }
 
 // Load reads the configuration. An explicit path must exist; without one,
@@ -136,7 +149,60 @@ func Parse(data []byte) (Config, error) {
 	if err := cfg.Volumes.Validate(); err != nil {
 		return Config{}, err
 	}
+	if len(f.Hosts) > 0 {
+		cfg.Hosts = make(map[string]Host, len(f.Hosts))
+		for name, h := range f.Hosts {
+			h, err := validateHost(name, h)
+			if err != nil {
+				return Config{}, err
+			}
+			cfg.Hosts[name] = h
+		}
+	}
 	return cfg, nil
+}
+
+// validateHost checks a named host and expands "~/" in its TLS path.
+func validateHost(name string, h Host) (Host, error) {
+	if name == "" || strings.Contains(name, "://") || strings.ContainsAny(name, " \t") {
+		return h, fmt.Errorf("hosts: invalid name %q (a name, not a URL)", name)
+	}
+	u, err := url.Parse(h.URL)
+	if err != nil || h.URL == "" {
+		return h, fmt.Errorf("hosts.%s.url: invalid URL %q", name, h.URL)
+	}
+	switch u.Scheme {
+	case "unix":
+		if u.Path == "" {
+			return h, fmt.Errorf("hosts.%s.url: unix:// needs a socket path", name)
+		}
+	case "tcp":
+		if u.Host == "" {
+			return h, fmt.Errorf("hosts.%s.url: tcp:// needs host:port", name)
+		}
+	case "ssh":
+		if u.Hostname() == "" || strings.HasPrefix(u.Hostname(), "-") {
+			return h, fmt.Errorf("hosts.%s.url: invalid ssh host in %q", name, h.URL)
+		}
+		if strings.Trim(u.Path, "/") != "" {
+			return h, fmt.Errorf("hosts.%s.url: ssh:// URLs take no path; the remote docker CLI's default socket is used", name)
+		}
+	default:
+		return h, fmt.Errorf("hosts.%s.url: scheme must be unix, tcp or ssh, got %q", name, u.Scheme)
+	}
+	if h.TLSCertPath != "" {
+		if u.Scheme != "tcp" {
+			return h, fmt.Errorf("hosts.%s.tls_cert_path: only valid for tcp:// hosts", name)
+		}
+		if rest, ok := strings.CutPrefix(h.TLSCertPath, "~/"); ok {
+			home, err := os.UserHomeDir()
+			if err != nil {
+				return h, fmt.Errorf("hosts.%s.tls_cert_path: %w", name, err)
+			}
+			h.TLSCertPath = filepath.Join(home, rest)
+		}
+	}
+	return h, nil
 }
 
 // readable rewrites yaml's unknown-field errors, which name Go struct types,

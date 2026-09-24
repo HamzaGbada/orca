@@ -4,7 +4,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/HamzaGbada/orca/internal/extensions/engine"
@@ -45,6 +44,7 @@ func containersCmd(fs *flag.FlagSet) func(context.Context, *env) error {
 	running := fs.Bool("running", false, "only running, paused and restarting containers")
 	stopped := fs.Bool("stopped", false, "only stopped containers (created, exited, dead)")
 	withSize := fs.Bool("size", false, "compute writable-layer sizes (slow)")
+	order := containerSort.register(fs)
 
 	return func(ctx context.Context, e *env) error {
 		state := discovery.AllContainers
@@ -57,10 +57,15 @@ func containersCmd(fs *flag.FlagSet) func(context.Context, *env) error {
 			state = discovery.StoppedContainers
 		}
 
-		cs, err := e.svc.Discovery.Containers(ctx, state, *withSize)
+		if err := containerSort.check(order); err != nil {
+			return err
+		}
+		// Sorting by size needs the sizes.
+		cs, err := e.svc.Discovery.Containers(ctx, state, *withSize || *order.key == "size")
 		if err != nil {
 			return err
 		}
+		containerSort.apply(cs, order)
 		if e.json {
 			return writeJSON(e.stdout, cs)
 		}
@@ -101,10 +106,14 @@ func imagesCmd(fs *flag.FlagSet) func(context.Context, *env) error {
 	untagged := fs.Bool("untagged", false, "only untagged images (dangling and intermediate)")
 	unused := fs.Bool("unused", false, "only images no container was created from")
 	used := fs.Bool("used", false, "only images at least one container was created from")
+	order := imageSort.register(fs)
 
 	return func(ctx context.Context, e *env) error {
 		if *used && *unused {
 			return usageError{"--used and --unused are mutually exclusive"}
+		}
+		if err := imageSort.check(order); err != nil {
+			return err
 		}
 
 		all, err := e.svc.Discovery.Images(ctx)
@@ -123,7 +132,7 @@ func imagesCmd(fs *flag.FlagSet) func(context.Context, *env) error {
 			}
 			imgs = append(imgs, img)
 		}
-		sort.SliceStable(imgs, func(i, j int) bool { return imgs[i].CreatedAt.After(imgs[j].CreatedAt) })
+		imageSort.apply(imgs, order)
 
 		if e.json {
 			return writeJSON(e.stdout, imgs)
@@ -155,12 +164,18 @@ func imagesCmd(fs *flag.FlagSet) func(context.Context, *env) error {
 	}
 }
 
-func volumesCmd(_ *flag.FlagSet) func(context.Context, *env) error {
+func volumesCmd(fs *flag.FlagSet) func(context.Context, *env) error {
+	order := volumeSort.register(fs)
+
 	return func(ctx context.Context, e *env) error {
+		if err := volumeSort.check(order); err != nil {
+			return err
+		}
 		inv, err := e.svc.Inventory.Collect(ctx)
 		if err != nil {
 			return err
 		}
+		volumeSort.apply(inv.Volumes, order)
 		printWarnings(e, inv.Warnings)
 		if e.json {
 			return writeJSON(e.stdout, inv.Volumes)

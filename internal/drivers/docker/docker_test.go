@@ -68,7 +68,7 @@ func TestOverlay2LayerDirs(t *testing.T) {
 func TestConnectDaemonUnavailable(t *testing.T) {
 	host := "unix://" + filepath.Join(t.TempDir(), "missing.sock")
 
-	_, err := Connect(context.Background(), host, time.Second)
+	_, err := Connect(context.Background(), Target{URL: host}, time.Second)
 	if !errors.Is(err, engine.ErrUnavailable) {
 		t.Errorf("err = %v, want engine.ErrUnavailable", err)
 	}
@@ -93,7 +93,7 @@ func TestConnectTimeout(t *testing.T) {
 	}()
 
 	start := time.Now()
-	_, err = Connect(context.Background(), "unix://"+sock, 200*time.Millisecond)
+	_, err = Connect(context.Background(), Target{URL: "unix://" + sock}, 200*time.Millisecond)
 	if !errors.Is(err, engine.ErrUnavailable) {
 		t.Errorf("err = %v, want engine.ErrUnavailable", err)
 	}
@@ -106,7 +106,7 @@ func TestConnectCanceled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	_, err := Connect(ctx, "unix://"+filepath.Join(t.TempDir(), "missing.sock"), time.Second)
+	_, err := Connect(ctx, Target{URL: "unix://" + filepath.Join(t.TempDir(), "missing.sock")}, time.Second)
 	if !errors.Is(err, context.Canceled) {
 		t.Errorf("err = %v, want context.Canceled", err)
 	}

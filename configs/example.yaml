@@ -31,3 +31,14 @@ volumes:
   # Protect every volume of these projects (com.orca.project label, or the
   # Docker Compose project name).
   protected_projects: []
+
+# Named Docker daemons, used with --host <name> (none by default). See
+# docs/remote.md.
+# hosts:
+#   prod:
+#     url: ssh://admin@prod.example.com      # runs `docker system dial-stdio` over ssh
+#   build:
+#     url: tcp://build.example.com:2376
+#     tls_cert_path: ~/.docker/build          # ca.pem, cert.pem, key.pem
+#   local:
+#     url: unix:///var/run/docker.sock

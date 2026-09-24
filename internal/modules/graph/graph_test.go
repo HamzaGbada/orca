@@ -149,6 +149,15 @@ func TestFromInventory(t *testing.T) {
 	if n, _ := g.Node("log:web"); n == nil || n.Size != 9 {
 		t.Errorf("log node = %+v", n)
 	}
+	if n, _ := g.Node("volume:db"); n.Attrs["state"] != "" {
+		t.Errorf("empty values must be omitted from attrs, got %v", n.Attrs)
+	}
+	if n, _ := g.Node("image:sha256:app"); n.Attrs["tags"] != "shop:1" || n.Attrs["project"] != "shop" || n.Attrs["id"] != "sha256:app" {
+		t.Errorf("image attrs = %v", n.Attrs)
+	}
+	if n, _ := g.Node("bindmount:/home/me/src"); !strings.Contains(n.Attrs["owner"], "never deleted") {
+		t.Errorf("bind mount attrs = %v", n.Attrs)
+	}
 	reach := g.Reachable([]string{NodeID(Container, "web")}, Dependencies)
 	if !reach["layer:sha256:l1"] || !reach["image:sha256:base"] || reach["buildcache:c1"] {
 		t.Errorf("reachable from web = %v", keys(reach))

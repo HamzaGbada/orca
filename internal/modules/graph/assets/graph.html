@@ -1,0 +1,627 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Orca · Docker dependency graph</title>
+<style>
+  :root {
+    --bg: #0b1120; --panel: #111a2e; --panel-2: #16223b; --line: #22304d;
+    --fg: #e5edf8; --muted: #8fa3bf; --accent: #38bdf8; --danger: #f87171;
+    --shadow: 0 8px 24px rgba(0, 0, 0, .35);
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f5f7fb; --panel: #ffffff; --panel-2: #eef2f8; --line: #d8e0ec;
+      --fg: #122033; --muted: #5b6b82; --accent: #0369a1; --danger: #dc2626;
+      --shadow: 0 8px 24px rgba(15, 30, 60, .12);
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    display: flex; flex-direction: column; background: var(--bg); color: var(--fg);
+    font: 13px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  button, select, input { font: inherit; color: inherit; }
+  header, .bar {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;
+    padding: 8px 14px; background: var(--panel); border-bottom: 1px solid var(--line);
+  }
+  .brand { font-weight: 700; font-size: 15px; }
+  .brand small { font-weight: 400; color: var(--muted); margin-left: 6px; }
+  #meta { color: var(--muted); font-size: 12px; }
+  .spacer { flex: 1; }
+  nav { display: flex; gap: 2px; background: var(--panel-2); border-radius: 8px; padding: 3px; }
+  nav button {
+    border: 0; background: transparent; padding: 5px 11px; border-radius: 6px; cursor: pointer; color: var(--muted);
+  }
+  nav button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+  .search { position: relative; }
+  .search input {
+    width: 220px; padding: 6px 10px; border-radius: 7px; border: 1px solid var(--line);
+    background: var(--panel-2); outline: none;
+  }
+  .search input:focus { border-color: var(--accent); }
+  #results {
+    position: absolute; top: calc(100% + 4px); left: 0; width: 360px; max-height: 360px; overflow: auto;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow);
+    z-index: 20; display: none;
+  }
+  #results button {
+    display: flex; gap: 8px; align-items: center; width: 100%; text-align: left; border: 0;
+    background: transparent; padding: 7px 10px; cursor: pointer;
+  }
+  #results button:hover, #results button:focus { background: var(--panel-2); outline: none; }
+  .btn {
+    border: 1px solid var(--line); background: var(--panel-2); border-radius: 7px; padding: 5px 10px; cursor: pointer;
+  }
+  .btn:hover { border-color: var(--accent); }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 999px;
+    border: 1px solid var(--line); cursor: pointer; user-select: none; background: var(--panel-2);
+  }
+  .chip input { margin: 0; }
+  .chip .count { color: var(--muted); font-size: 11px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: none; }
+  select { padding: 4px 8px; border-radius: 7px; border: 1px solid var(--line); background: var(--panel-2); }
+  #stats { color: var(--muted); font-size: 12px; margin-left: auto; }
+  main { position: relative; flex: 1; min-height: 0; }
+  #graph { position: absolute; inset: 0; }
+  .overlay {
+    position: absolute; left: 50%; top: 45%; transform: translate(-50%, -50%); padding: 14px 18px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow);
+    color: var(--muted); text-align: center; pointer-events: none;
+  }
+  #focusbar {
+    position: absolute; top: 12px; left: 50%; transform: translateX(-50%); display: none; gap: 10px; align-items: center;
+    background: var(--panel); border: 1px solid var(--accent); border-radius: 999px; padding: 5px 6px 5px 14px;
+    box-shadow: var(--shadow);
+  }
+  #panel {
+    position: absolute; top: 12px; right: 12px; bottom: 12px; width: 360px; overflow: auto; padding: 14px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow);
+  }
+  #panel[hidden] { display: none; }
+  #panel h2 { font-size: 15px; margin: 6px 0 2px; word-break: break-all; }
+  .kind-badge {
+    display: inline-flex; align-items: center; gap: 6px; font-size: 11px; text-transform: uppercase;
+    letter-spacing: .04em; color: var(--muted);
+  }
+  .panel-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+  .close { border: 0; background: transparent; font-size: 18px; cursor: pointer; color: var(--muted); line-height: 1; }
+  .size { color: var(--muted); margin-bottom: 10px; }
+  .actions { display: flex; gap: 6px; margin: 8px 0 12px; }
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: 4px 0; vertical-align: top; border-top: 1px solid var(--line); }
+  td:first-child { color: var(--muted); width: 38%; padding-right: 8px; }
+  td:last-child { white-space: pre-wrap; word-break: break-word; }
+  .state-protected { color: #22c55e; font-weight: 600; }
+  .state-referenced { color: #f59e0b; font-weight: 600; }
+  .state-candidate { color: #ef4444; font-weight: 600; }
+  .state-unreferenced { color: #f472b6; font-weight: 600; }
+  h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 16px 0 6px; }
+  .links { list-style: none; margin: 0; padding: 0; }
+  .links li button {
+    display: flex; gap: 8px; align-items: center; width: 100%; text-align: left; border: 0; background: transparent;
+    padding: 4px 6px; border-radius: 6px; cursor: pointer;
+  }
+  .links li button:hover { background: var(--panel-2); }
+  .edge-kind { color: var(--muted); font-size: 11px; min-width: 58px; }
+  .more { color: var(--muted); padding: 4px 6px; }
+  #legend {
+    position: absolute; left: 12px; bottom: 12px; padding: 10px 12px; background: var(--panel);
+    border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); max-width: 440px; font-size: 12px;
+  }
+  #legend summary { cursor: pointer; font-weight: 600; }
+  .legend-grid { display: grid; grid-template-columns: repeat(3, auto); gap: 4px 14px; margin-top: 8px; }
+  .legend-grid span { display: inline-flex; align-items: center; gap: 6px; }
+  .line { width: 16px; height: 2px; display: inline-block; }
+  .hint { color: var(--muted); font-size: 12px; margin-top: 8px; }
+  kbd { border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; font-size: 11px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">Orca <small>dependency graph</small></div>
+  <nav id="views" aria-label="Views"></nav>
+  <div class="spacer"></div>
+  <div class="search">
+    <input id="search" type="search" placeholder="Search name, ID, tag…  ( / )" autocomplete="off" aria-label="Search resources">
+    <div id="results" role="listbox"></div>
+  </div>
+  <button class="btn" id="fit" title="Fit the graph to the window">Fit</button>
+  <button class="btn" id="layout" title="Switch between force and left-to-right layout">Force layout</button>
+  <button class="btn" id="png" title="Download the current view as PNG">PNG</button>
+  <button class="btn" id="json" title="Download the graph data as JSON">JSON</button>
+</header>
+<div class="bar">
+  <div id="kinds" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+  <label>Project <select id="project"></select></label>
+  <div id="stats"></div>
+  <div id="meta"></div>
+</div>
+<main>
+  <div id="graph"></div>
+  <div id="focusbar"><span id="focuslabel"></span><button class="btn" id="unfocus">Show all</button></div>
+  <div id="empty" class="overlay" hidden>Nothing to show in this view. Enable more resource kinds above.</div>
+  <div id="loading" class="overlay">Laying out the graph…</div>
+  <aside id="panel" hidden aria-live="polite"></aside>
+  <details id="legend" open>
+    <summary>Legend</summary>
+    <div class="legend-grid" id="legendgrid"></div>
+    <div class="hint">Click: details · Double-click: focus on dependencies · <kbd>/</kbd> search · <kbd>Esc</kbd> clear</div>
+  </details>
+</main>
+
+<script id="orca-data" type="application/json">{{ORCA_DATA}}</script>
+<script>{{VIS_NETWORK}}</script>
+<script>
+"use strict";
+(function () {
+  const data = JSON.parse(document.getElementById("orca-data").textContent);
+  const meta = data.Meta || {};
+  const nodes = data.Nodes || [];
+  const edges = data.Edges || [];
+
+  const KINDS = {
+    // Every shape draws its label below the node, so node size can encode
+    // disk usage without swallowing the labels.
+    project:    { label: "Projects",    color: "#a855f7", shape: "hexagon" },
+    container:  { label: "Containers",  color: "#3b82f6", shape: "square" },
+    image:      { label: "Images",      color: "#06b6d4", shape: "dot" },
+    volume:     { label: "Volumes",     color: "#f59e0b", shape: "diamond" },
+    bindmount:  { label: "Bind mounts", color: "#eab308", shape: "triangle" },
+    log:        { label: "Logs",        color: "#84cc16", shape: "star" },
+    layer:      { label: "Layers",      color: "#10b981", shape: "dot" },
+    buildcache: { label: "Build cache", color: "#94a3b8", shape: "triangleDown" },
+  };
+  const VOLUME_STATES = {
+    protected:    { label: "protected",    color: "#22c55e" },
+    referenced:   { label: "in use",       color: "#f59e0b" },
+    candidate:    { label: "candidate",    color: "#ef4444" },
+    unreferenced: { label: "needs review", color: "#f472b6" },
+  };
+  const EDGES = {
+    uses: "#38bdf8", mounts: "#f59e0b", writes: "#84cc16", contains: "#10b981", parent: "#818cf8", member: "#a855f7",
+  };
+  const VIEWS = {
+    overview: { label: "Overview",        kinds: ["project", "container", "image", "volume", "bindmount"], hideIntermediate: true },
+    storage:  { label: "Storage",         kinds: ["container", "volume", "bindmount", "log"] },
+    images:   { label: "Images & layers", kinds: ["image", "layer"] },
+    cache:    { label: "Build cache",     kinds: ["buildcache"] },
+    all:      { label: "Everything",      kinds: Object.keys(KINDS) },
+  };
+  const LIVE = new Set(["running", "paused", "restarting"]);
+
+  // ---- indexes ---------------------------------------------------------
+  const byId = new Map(nodes.map(n => [n.ID, n]));
+  const outEdges = new Map(), inEdges = new Map();
+  edges.forEach((e, i) => {
+    e.id = "e" + i;
+    (outEdges.get(e.From) || outEdges.set(e.From, []).get(e.From)).push(e);
+    (inEdges.get(e.To) || inEdges.set(e.To, []).get(e.To)).push(e);
+  });
+  const counts = {};
+  nodes.forEach(n => { counts[n.Kind] = (counts[n.Kind] || 0) + 1; });
+
+  // Transitive closure along dependency edges (membership excluded).
+  function closure(start, forward) {
+    const seen = new Set(start), stack = [...start];
+    while (stack.length) {
+      const id = stack.pop();
+      for (const e of (forward ? outEdges : inEdges).get(id) || []) {
+        if (e.Kind === "member") continue;
+        const next = forward ? e.To : e.From;
+        if (!seen.has(next)) { seen.add(next); stack.push(next); }
+      }
+    }
+    return seen;
+  }
+
+  // ---- state -----------------------------------------------------------
+  const state = { view: "overview", kinds: new Set(VIEWS.overview.kinds), project: "", focus: null, selected: null, hierarchical: false };
+
+  const $ = id => document.getElementById(id);
+  const el = (tag, props, ...children) => {
+    const e = document.createElement(tag);
+    Object.assign(e, props || {});
+    children.forEach(c => e.append(c));
+    return e;
+  };
+  const cssVar = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+  function humanSize(b) {
+    if (b === undefined || b === null || b < 0) return "";
+    const u = ["B", "kB", "MB", "GB", "TB"];
+    let i = 0, v = b;
+    while (v >= 1000 && i < u.length - 1) { v /= 1000; i++; }
+    return (i ? v.toFixed(v < 10 ? 2 : 1) : v) + " " + u[i];
+  }
+
+  function shortLabel(n) {
+    let l = n.Label || n.ID;
+    if (n.Kind === "bindmount") {
+      const p = l.replace(/\/+$/, "").split("/");
+      if (p.length > 3) l = "…/" + p.slice(-2).join("/");
+    }
+    if (n.Kind === "buildcache") {
+      const [type, id] = l.split(" ");
+      l = type + " " + (id || "").slice(0, 8);
+    }
+    return l.length > 34 ? l.slice(0, 32) + "…" : l;
+  }
+
+  function nodeColor(n) {
+    if (n.Kind === "volume") {
+      const s = VOLUME_STATES[(n.Attrs || {}).state];
+      if (s) return s.color;
+    }
+    return KINDS[n.Kind].color;
+  }
+
+  function withAlpha(hex, a) {
+    const v = parseInt(hex.slice(1), 16);
+    return `rgba(${v >> 16}, ${(v >> 8) & 255}, ${v & 255}, ${a})`;
+  }
+
+  // ---- visibility ------------------------------------------------------
+  function projectScope() {
+    if (!state.project) return null;
+    const pid = "project:" + state.project;
+    const members = (outEdges.get(pid) || []).filter(e => e.Kind === "member").map(e => e.To);
+    const scope = closure(members, true);
+    scope.add(pid);
+    return scope;
+  }
+
+  function isVisible(n, scope) {
+    if (state.focus) return state.focus.has(n.ID);
+    if (!state.kinds.has(n.Kind)) return false;
+    if (VIEWS[state.view].hideIntermediate && n.Kind === "image" && (n.Attrs || {}).kind === "intermediate") return false;
+    return !scope || scope.has(n.ID);
+  }
+
+  // ---- network ---------------------------------------------------------
+  let network = null, visNodes = null, visEdges = null, visible = new Set();
+
+  function toVisNode(n) {
+    const color = nodeColor(n);
+    const a = n.Attrs || {};
+    const faded = (n.Kind === "container" && !LIVE.has(a.state)) || (n.Kind === "image" && a.kind === "dangling");
+    return {
+      id: n.ID,
+      label: shortLabel(n),
+      shape: KINDS[n.Kind].shape,
+      value: Math.max(n.Size || 0, 1),
+      color: {
+        background: faded ? withAlpha(color, 0.25) : color,
+        border: color,
+        highlight: { background: color, border: cssVar("--fg") },
+        hover: { background: color, border: cssVar("--fg") },
+      },
+      borderWidth: faded ? 2 : 1,
+      shapeProperties: { borderDashes: faded ? [5, 4] : false },
+      font: { color: cssVar("--fg") },
+    };
+  }
+
+  function toVisEdge(e) {
+    return {
+      id: e.id, from: e.From, to: e.To,
+      color: { color: EDGES[e.Kind] || "#888", opacity: 0.7 },
+      dashes: e.Kind === "member" ? [3, 4] : false,
+      width: e.Kind === "member" ? 1 : 1.4,
+    };
+  }
+
+  function options() {
+    const logScale = (min, max, total, value) => {
+      if (max === min) return 0.5;
+      return (Math.log(value) - Math.log(min)) / (Math.log(max) - Math.log(min));
+    };
+    return {
+      autoResize: true,
+      nodes: {
+        font: { face: "system-ui, sans-serif", size: 13 },
+        scaling: { min: 7, max: 30, label: { enabled: false }, customScalingFunction: logScale },
+      },
+      edges: {
+        arrows: { to: { enabled: true, scaleFactor: 0.45 } },
+        smooth: state.hierarchical ? { type: "cubicBezier", forceDirection: "horizontal", roundness: 0.4 } : { type: "continuous" },
+        selectionWidth: 2,
+      },
+      interaction: { hover: true, hideEdgesOnDrag: true, multiselect: false },
+      layout: state.hierarchical
+        ? { hierarchical: { direction: "LR", sortMethod: "directed", levelSeparation: 230, nodeSpacing: 34, treeSpacing: 60 } }
+        : { improvedLayout: false },
+      physics: state.hierarchical
+        ? { enabled: true, solver: "hierarchicalRepulsion", hierarchicalRepulsion: { nodeDistance: 120 }, stabilization: { iterations: 300 } }
+        : {
+            enabled: true, solver: "forceAtlas2Based",
+            forceAtlas2Based: { gravitationalConstant: -70, springLength: 95, springConstant: 0.06, avoidOverlap: 0.5 },
+            stabilization: { iterations: 400 },
+          },
+    };
+  }
+
+  function render() {
+    const scope = projectScope();
+    const shown = nodes.filter(n => isVisible(n, scope));
+    visible = new Set(shown.map(n => n.ID));
+    const shownEdges = edges.filter(e => visible.has(e.From) && visible.has(e.To));
+
+    visNodes = new vis.DataSet(shown.map(toVisNode));
+    visEdges = new vis.DataSet(shownEdges.map(toVisEdge));
+    $("empty").hidden = shown.length > 0;
+    $("loading").hidden = shown.length === 0;
+    $("loading").textContent = "Laying out " + shown.length + " resources…";
+
+    if (network) network.destroy();
+    network = new vis.Network($("graph"), { nodes: visNodes, edges: visEdges }, options());
+    network.on("stabilizationProgress", p => {
+      $("loading").textContent = "Laying out… " + Math.round(100 * p.iterations / p.total) + "%";
+    });
+    network.once("stabilizationIterationsDone", () => {
+      // Freeze the layout: no CPU use afterwards, nodes stay where dragged.
+      network.setOptions({ physics: false });
+      $("loading").hidden = true;
+      network.fit({ animation: false });
+      if (state.selected && visible.has(state.selected)) highlight(state.selected);
+    });
+    network.on("click", p => {
+      if (p.nodes.length) select(p.nodes[0]);
+      else if (!p.edges.length) clearSelection();
+    });
+    network.on("doubleClick", p => { if (p.nodes.length) focusOn(p.nodes[0]); });
+
+    $("stats").textContent = `Showing ${shown.length} of ${nodes.length} resources · ${shownEdges.length} links`;
+    $("focusbar").style.display = state.focus ? "flex" : "none";
+  }
+
+  // ---- selection, highlight, focus ------------------------------------
+  function neighbours(id) {
+    const s = new Set([id]);
+    (outEdges.get(id) || []).forEach(e => s.add(e.To));
+    (inEdges.get(id) || []).forEach(e => s.add(e.From));
+    return s;
+  }
+
+  function highlight(id) {
+    const near = neighbours(id);
+    visNodes.update(visNodes.getIds().map(nid => ({ id: nid, opacity: near.has(nid) ? 1 : 0.15 })));
+    visEdges.update(visEdges.get().map(e => ({
+      id: e.id, color: { color: e.color.color, opacity: e.from === id || e.to === id ? 1 : 0.06 },
+    })));
+    network.selectNodes([id]);
+  }
+
+  function unhighlight() {
+    if (!visNodes) return;
+    visNodes.update(visNodes.getIds().map(nid => ({ id: nid, opacity: 1 })));
+    visEdges.update(visEdges.get().map(e => ({ id: e.id, color: { color: e.color.color, opacity: 0.7 } })));
+    network.unselectAll();
+  }
+
+  function select(id) {
+    const n = byId.get(id);
+    if (!n) return;
+    if (!visible.has(id)) {
+      // Reveal a resource hidden by the current filters, then select it.
+      state.kinds.add(n.Kind);
+      if (state.focus) state.focus.add(id);
+      state.project = "";
+      state.selected = id;
+      syncControls();
+      render();
+      showPanel(n);
+      return;
+    }
+    state.selected = id;
+    highlight(id);
+    showPanel(n);
+    network.focus(id, { scale: Math.max(network.getScale(), 0.9), animation: { duration: 400 } });
+  }
+
+  function clearSelection() {
+    state.selected = null;
+    $("panel").hidden = true;
+    unhighlight();
+  }
+
+  function focusOn(id) {
+    const n = byId.get(id);
+    state.focus = new Set([...closure([id], true), ...closure([id], false)]);
+    state.selected = id;
+    $("focuslabel").textContent = "Dependencies of " + shortLabel(n) + " (" + state.focus.size + " resources)";
+    render();
+    showPanel(n);
+  }
+
+  function unfocus() {
+    state.focus = null;
+    render();
+    if (state.selected && byId.has(state.selected)) showPanel(byId.get(state.selected));
+  }
+
+  // ---- details panel ---------------------------------------------------
+  function linkList(title, items) {
+    if (!items.length) return [];
+    const ul = el("ul", { className: "links" });
+    items.slice(0, 60).forEach(({ kind, id }) => {
+      const t = byId.get(id);
+      if (!t) return;
+      const b = el("button", { type: "button", title: t.ID },
+        el("span", { className: "dot", style: "background:" + nodeColor(t) }),
+        el("span", { className: "edge-kind", textContent: kind }),
+        el("span", { textContent: shortLabel(t) }));
+      b.addEventListener("click", () => select(id));
+      ul.append(el("li", {}, b));
+    });
+    const out = [el("h3", { textContent: `${title} (${items.length})` }), ul];
+    if (items.length > 60) out.push(el("div", { className: "more", textContent: `+${items.length - 60} more` }));
+    return out;
+  }
+
+  function showPanel(n) {
+    const p = $("panel");
+    p.replaceChildren();
+    const close = el("button", { className: "close", type: "button", textContent: "×", title: "Close (Esc)" });
+    close.addEventListener("click", clearSelection);
+    p.append(el("div", { className: "panel-head" },
+      el("span", { className: "kind-badge" },
+        el("span", { className: "dot", style: "background:" + nodeColor(n) }),
+        document.createTextNode(n.Kind)),
+      close));
+    p.append(el("h2", { textContent: n.Label || n.ID }));
+    const size = humanSize(n.Size);
+    p.append(el("div", { className: "size", textContent: size ? "Size: " + size : "Size: not measured" }));
+
+    const actions = el("div", { className: "actions" });
+    const fb = el("button", { className: "btn", type: "button", textContent: "Focus on dependencies" });
+    fb.addEventListener("click", () => focusOn(n.ID));
+    actions.append(fb);
+    if (state.focus) {
+      const ub = el("button", { className: "btn", type: "button", textContent: "Show all" });
+      ub.addEventListener("click", unfocus);
+      actions.append(ub);
+    }
+    p.append(actions);
+
+    const attrs = Object.entries(n.Attrs || {}).sort(([a], [b]) => a.localeCompare(b));
+    if (attrs.length) {
+      const tbody = el("tbody");
+      attrs.forEach(([k, v]) => {
+        const val = el("td", { textContent: v });
+        if (n.Kind === "volume" && k === "state") {
+          val.className = "state-" + v;
+          val.textContent = (VOLUME_STATES[v] || { label: v }).label;
+        }
+        tbody.append(el("tr", {}, el("td", { textContent: k }), val));
+      });
+      p.append(el("table", {}, tbody));
+    }
+
+    const outs = (outEdges.get(n.ID) || []), ins = (inEdges.get(n.ID) || []);
+    const pick = (list, member, end) => list.filter(e => (e.Kind === "member") === member).map(e => ({ kind: e.Kind, id: e[end] }));
+    p.append(...linkList(n.Kind === "project" ? "Members" : "Depends on", pick(outs, n.Kind === "project", "To")));
+    p.append(...linkList("Used by", pick(ins, false, "From")));
+    p.append(...linkList("Project", pick(ins, true, "From")));
+    p.hidden = false;
+  }
+
+  // ---- controls --------------------------------------------------------
+  function syncControls() {
+    document.querySelectorAll("#views button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.view === state.view)));
+    document.querySelectorAll("#kinds input").forEach(i => { i.checked = state.kinds.has(i.value); });
+    $("project").value = state.project;
+    $("layout").textContent = state.hierarchical ? "Tree layout" : "Force layout";
+  }
+
+  Object.entries(VIEWS).forEach(([key, v]) => {
+    const b = el("button", { type: "button", textContent: v.label });
+    b.dataset.view = key;
+    b.addEventListener("click", () => {
+      state.view = key;
+      state.kinds = new Set(v.kinds);
+      state.focus = null;
+      syncControls();
+      render();
+    });
+    $("views").append(b);
+  });
+
+  Object.entries(KINDS).forEach(([kind, k]) => {
+    const input = el("input", { type: "checkbox", value: kind });
+    input.addEventListener("change", () => {
+      input.checked ? state.kinds.add(kind) : state.kinds.delete(kind);
+      state.focus = null;
+      render();
+    });
+    $("kinds").append(el("label", { className: "chip" }, input,
+      el("span", { className: "dot", style: "background:" + k.color }),
+      document.createTextNode(k.label),
+      el("span", { className: "count", textContent: String(counts[kind] || 0) })));
+  });
+
+  const projects = nodes.filter(n => n.Kind === "project").map(n => n.Label).sort();
+  $("project").append(el("option", { value: "", textContent: `All (${projects.length})` }));
+  projects.forEach(p => $("project").append(el("option", { value: p, textContent: p })));
+  $("project").addEventListener("change", e => { state.project = e.target.value; state.focus = null; render(); });
+
+  $("fit").addEventListener("click", () => network && network.fit({ animation: { duration: 400 } }));
+  $("layout").addEventListener("click", () => { state.hierarchical = !state.hierarchical; syncControls(); render(); });
+  $("unfocus").addEventListener("click", unfocus);
+
+  function download(name, url) {
+    const a = el("a", { href: url, download: name });
+    document.body.append(a);
+    a.click();
+    a.remove();
+  }
+  $("png").addEventListener("click", () => {
+    const src = document.querySelector("#graph canvas");
+    if (!src) return;
+    const c = document.createElement("canvas");
+    c.width = src.width; c.height = src.height;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = cssVar("--bg");
+    ctx.fillRect(0, 0, c.width, c.height);
+    ctx.drawImage(src, 0, 0);
+    download("orca-graph.png", c.toDataURL("image/png"));
+  });
+  $("json").addEventListener("click", () => {
+    const clean = { Nodes: nodes, Edges: edges.map(({ From, To, Kind }) => ({ From, To, Kind })) };
+    const url = URL.createObjectURL(new Blob([JSON.stringify(clean, null, 2)], { type: "application/json" }));
+    download("orca-graph.json", url);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  });
+
+  // Search: name, ID, tags or any attribute value.
+  const search = $("search"), results = $("results");
+  search.addEventListener("input", () => {
+    const q = search.value.trim().toLowerCase();
+    results.replaceChildren();
+    if (!q) { results.style.display = "none"; return; }
+    const hits = nodes.filter(n =>
+      (n.Label || "").toLowerCase().includes(q) || n.ID.toLowerCase().includes(q) ||
+      Object.values(n.Attrs || {}).some(v => v.toLowerCase().includes(q))).slice(0, 25);
+    hits.forEach(n => {
+      const b = el("button", { type: "button" },
+        el("span", { className: "dot", style: "background:" + nodeColor(n) }),
+        el("span", { className: "edge-kind", textContent: n.Kind }),
+        el("span", { textContent: shortLabel(n) }));
+      b.addEventListener("click", () => { results.style.display = "none"; search.value = ""; select(n.ID); });
+      results.append(b);
+    });
+    if (!hits.length) results.append(el("div", { className: "more", textContent: "No match" }));
+    results.style.display = "block";
+  });
+  search.addEventListener("keydown", e => {
+    if (e.key === "Enter") { const first = results.querySelector("button"); if (first) first.click(); }
+    if (e.key === "Escape") { search.value = ""; results.style.display = "none"; search.blur(); }
+  });
+  document.addEventListener("click", e => { if (!e.target.closest(".search")) results.style.display = "none"; });
+  document.addEventListener("keydown", e => {
+    if (e.key === "/" && document.activeElement !== search) { e.preventDefault(); search.focus(); }
+    if (e.key === "Escape" && document.activeElement !== search) {
+      if (state.selected) clearSelection(); else if (state.focus) unfocus();
+    }
+  });
+
+  // Legend
+  const lg = $("legendgrid");
+  Object.values(KINDS).forEach(k => lg.append(el("span", {}, el("span", { className: "dot", style: "background:" + k.color }), document.createTextNode(k.label))));
+  Object.values(VOLUME_STATES).forEach(s => lg.append(el("span", {}, el("span", { className: "dot", style: "background:" + s.color }), document.createTextNode("volume " + s.label))));
+  lg.append(el("span", {}, el("span", { className: "dot", style: "border:2px dashed #3b82f6;background:transparent" }), document.createTextNode("stopped / dangling")));
+  Object.entries(EDGES).forEach(([k, c]) => lg.append(el("span", {}, el("span", { className: "line", style: "background:" + c }), document.createTextNode(k))));
+
+  const parts = [meta.Host, meta.Docker && "Docker " + meta.Docker, meta.Generated && "generated " + meta.Generated, meta.Orca && "orca " + meta.Orca];
+  $("meta").textContent = parts.filter(Boolean).join(" · ");
+
+  syncControls();
+  render();
+})();
+</script>
+</body>
+</html>

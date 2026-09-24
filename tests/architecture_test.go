@@ -74,12 +74,14 @@ func imports(f goFile) []string {
 	return out
 }
 
-// Only the Docker driver may use the Moby SDK.
+// Only the Docker driver may use the Moby SDK or the docker CLI's packages
+// (its ssh connection helper).
 func TestOnlyDockerDriverImportsMoby(t *testing.T) {
 	for _, f := range sourceFiles(t) {
 		for _, imp := range imports(f) {
-			if strings.HasPrefix(imp, "github.com/moby/") && f.pkgDir != "internal/drivers/docker" {
-				t.Errorf("%s imports %s; only internal/drivers/docker may use the Moby SDK", f.path, imp)
+			docker := strings.HasPrefix(imp, "github.com/moby/") || strings.HasPrefix(imp, "github.com/docker/cli/")
+			if docker && f.pkgDir != "internal/drivers/docker" {
+				t.Errorf("%s imports %s; only internal/drivers/docker may use Docker client packages", f.path, imp)
 			}
 		}
 	}

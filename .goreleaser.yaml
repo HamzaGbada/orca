@@ -37,6 +37,9 @@ archives:
       - README.md
       - CHANGELOG.md
       - configs/example.yaml
+      # vis-network is embedded in the binary (orca graph); ship its license.
+      - src: internal/modules/graph/assets/LICENSE-vis-network
+        dst: LICENSE-vis-network
     builds_info:
       mtime: "{{ .CommitDate }}"
 
