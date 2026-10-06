@@ -28,7 +28,7 @@ Users' side: [install.md](install.md).
  └──────────────────────────────────────────────────────────────────┘
                 │
                 ▼
- curl -fsSL https://raw.githubusercontent.com/HamzaGbada/orca/main/install.sh | sh
+ curl -fsSL https://raw.githubusercontent.com/HamzaGbada/orca/master/install.sh | sh
 ```
 
 Every push and pull request runs `.github/workflows/ci.yml`: gofmt, `go mod
@@ -128,7 +128,7 @@ goreleaser release --snapshot --clean --skip=sign  # optional local dry run into
 ### Verify the published release yourself
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/HamzaGbada/orca/main/install.sh | ORCA_VERSION=v0.1.0 ORCA_REQUIRE_SIGNATURE=1 ORCA_INSTALL_DIR=/tmp/orca-check sh
+curl -fsSL https://raw.githubusercontent.com/HamzaGbada/orca/master/install.sh | ORCA_VERSION=v0.1.0 ORCA_REQUIRE_SIGNATURE=1 ORCA_INSTALL_DIR=/tmp/orca-check sh
 /tmp/orca-check/orca version
 ```
 
@@ -145,12 +145,12 @@ environments:
 # Debian/Ubuntu (/bin/sh is dash)
 docker run --rm debian:stable-slim sh -c '
   apt-get update -qq && apt-get install -qq -y curl ca-certificates >/dev/null &&
-  curl -fsSL https://raw.githubusercontent.com/HamzaGbada/orca/main/install.sh | sh &&
+  curl -fsSL https://raw.githubusercontent.com/HamzaGbada/orca/master/install.sh | sh &&
   orca version'
 
 # Alpine (busybox sh and wget, no curl)
 docker run --rm alpine sh -c '
-  wget -qO- https://raw.githubusercontent.com/HamzaGbada/orca/main/install.sh | sh &&
+  wget -qO- https://raw.githubusercontent.com/HamzaGbada/orca/master/install.sh | sh &&
   orca version'
 ```
 

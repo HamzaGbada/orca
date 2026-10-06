@@ -15,7 +15,7 @@ APIs.
 ## Install
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/HamzaGbada/orca/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/HamzaGbada/orca/master/install.sh | sh
 ```
 
 This installs a verified binary (Linux and macOS, amd64/arm64) into

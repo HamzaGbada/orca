@@ -13,7 +13,7 @@ It needs no runtime dependencies, only access to a Docker Engine.
 ## 1. Quick install
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/HamzaGbada/orca/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/HamzaGbada/orca/master/install.sh | sh
 ```
 
 The script:
@@ -36,7 +36,7 @@ directory.
 Piping a script into a shell trusts it blindly. To inspect it first:
 
 ```sh
-curl -fsSLo install.sh https://raw.githubusercontent.com/HamzaGbada/orca/main/install.sh
+curl -fsSLo install.sh https://raw.githubusercontent.com/HamzaGbada/orca/master/install.sh
 less install.sh
 sh install.sh
 ```
@@ -54,13 +54,13 @@ Set these as environment variables **for `sh`**, after the pipe:
 
 ```sh
 # Pin a version (recommended for servers and automation)
-curl -fsSL https://raw.githubusercontent.com/HamzaGbada/orca/main/install.sh | ORCA_VERSION=v0.1.0 sh
+curl -fsSL https://raw.githubusercontent.com/HamzaGbada/orca/master/install.sh | ORCA_VERSION=v0.1.0 sh
 
 # Install without sudo, for your user only
-curl -fsSL https://raw.githubusercontent.com/HamzaGbada/orca/main/install.sh | ORCA_INSTALL_DIR="$HOME/.local/bin" sh
+curl -fsSL https://raw.githubusercontent.com/HamzaGbada/orca/master/install.sh | ORCA_INSTALL_DIR="$HOME/.local/bin" sh
 
 # Hardened: pinned version, signature required (cosign must be installed)
-curl -fsSL https://raw.githubusercontent.com/HamzaGbada/orca/main/install.sh | ORCA_VERSION=v0.1.0 ORCA_REQUIRE_SIGNATURE=1 sh
+curl -fsSL https://raw.githubusercontent.com/HamzaGbada/orca/master/install.sh | ORCA_VERSION=v0.1.0 ORCA_REQUIRE_SIGNATURE=1 sh
 ```
 
 Installing into `~/.local/bin` works, but `sudo orca …` won't find the binary
@@ -153,7 +153,7 @@ and edit it:
 
 ```sh
 mkdir -p ~/.config/orca
-curl -fsSLo ~/.config/orca/config.yaml https://raw.githubusercontent.com/HamzaGbada/orca/main/configs/example.yaml
+curl -fsSLo ~/.config/orca/config.yaml https://raw.githubusercontent.com/HamzaGbada/orca/master/configs/example.yaml
 ```
 
 ## 6. Upgrade
