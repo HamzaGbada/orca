@@ -35,6 +35,10 @@ Rules, enforced by `tests/architecture_test.go`:
    receive their policy types from `bootstrap`.
 3. The Docker driver calls only allow-listed read-only API methods. Adding a
    method to the allowlist is a design decision and must be justified in review.
+4. Read-only until the Sprint 3 executor (`tests/readonly_test.go`): the
+   `engine.Engine` contract only has reviewed read-only methods, and no code
+   writes, renames or removes files or runs programs outside the reviewed
+   exceptions.
 
 ## Safety rules
 

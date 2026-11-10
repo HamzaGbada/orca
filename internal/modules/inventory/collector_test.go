@@ -12,6 +12,7 @@ import (
 	"github.com/HamzaGbada/orca/internal/extensions/engine"
 	"github.com/HamzaGbada/orca/internal/extensions/fsmeasure"
 	"github.com/HamzaGbada/orca/internal/modules/discovery"
+	"github.com/HamzaGbada/orca/internal/modules/layers"
 	"github.com/HamzaGbada/orca/internal/modules/pressure"
 	"github.com/HamzaGbada/orca/internal/modules/volumes"
 )
@@ -38,7 +39,8 @@ type fakeEngine struct {
 	// Containers() call.
 	changeAfter func(f *fakeEngine, call int)
 	// inspectErr is returned by the first ContainerDetails call.
-	inspectErr error
+	inspectErr   error
+	historyCalls int
 }
 
 func (f *fakeEngine) Info(context.Context) (engine.DaemonInfo, error) {
@@ -69,6 +71,15 @@ func (f *fakeEngine) ImageLayers(_ context.Context, id string) (engine.ImageLaye
 		return engine.ImageLayers{ImageID: id, DiffIDs: []string{base, app}}, nil
 	}
 	return engine.ImageLayers{ImageID: id, DiffIDs: []string{base}}, nil
+}
+
+func (f *fakeEngine) ImageHistory(_ context.Context, id string) ([]int64, error) {
+	f.historyCalls++
+	// app = base (100, shared) + app layer (200): history maps one to one.
+	if id == "sha256:app" {
+		return []int64{100, 0, 200}, nil
+	}
+	return []int64{100}, nil
 }
 
 func (f *fakeEngine) Volumes(context.Context) ([]engine.Volume, error) { return f.volumes, nil }
@@ -139,7 +150,7 @@ func newFake() *fakeEngine {
 }
 
 func collector(e engine.Engine, m fsmeasure.Measurer) *Collector {
-	c := NewCollector(e, m, Options{Disk: pressure.DefaultThresholds, LargeLogBytes: 100_000_000, Volumes: volumes.DefaultPolicy})
+	c := NewCollector(e, m, nil, Options{Disk: pressure.DefaultThresholds, LargeLogBytes: 100_000_000, Volumes: volumes.DefaultPolicy})
 	c.now = func() time.Time { return t0 }
 	return c
 }
@@ -276,5 +287,70 @@ func TestCollectRemoteDaemon(t *testing.T) {
 	}
 	if !strings.Contains(strings.Join(inv.Warnings, "\n"), "not on this host") {
 		t.Errorf("warnings %v should explain why disk pressure is missing", inv.Warnings)
+	}
+}
+
+type fakeLayerDB struct {
+	sizes map[string]int64
+	err   error
+}
+
+func (f fakeLayerDB) LayerSizes(_ context.Context, _, _ string, ids []string) (map[string]int64, error) {
+	out := map[string]int64{}
+	for _, id := range ids {
+		if s, ok := f.sizes[id]; ok {
+			out[id] = s
+		}
+	}
+	return out, f.err
+}
+
+func layerSize(inv Inventory, chainID string) int64 {
+	for _, l := range inv.Layers {
+		if l.ChainID == chainID {
+			return l.Size
+		}
+	}
+	return -2
+}
+
+func TestCollectInfersLayerSizesWithoutRoot(t *testing.T) {
+	inv, err := collector(newFake(), fakeFS{}).Collect(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	appChain := layers.ChainIDs([]string{base, app})[1]
+	if inv.LayerSizes != "inferred" || layerSize(inv, base) != 100 || layerSize(inv, appChain) != 200 {
+		t.Errorf("source=%s base=%d app=%d, want inferred/100/200", inv.LayerSizes, layerSize(inv, base), layerSize(inv, appChain))
+	}
+}
+
+func TestCollectReadsLayerDB(t *testing.T) {
+	f := newFake()
+	appChain := layers.ChainIDs([]string{base, app})[1]
+	c := collector(f, fakeFS{})
+	c.ldb = fakeLayerDB{sizes: map[string]int64{base: 111, appChain: 222}}
+
+	inv, err := c.Collect(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if inv.LayerSizes != "layerdb" || layerSize(inv, base) != 111 || layerSize(inv, appChain) != 222 {
+		t.Errorf("source=%s sizes=%d/%d, want layerdb 111/222", inv.LayerSizes, layerSize(inv, base), layerSize(inv, appChain))
+	}
+	if f.historyCalls != 0 {
+		t.Errorf("history fetched %d times although the layer database sized every layer", f.historyCalls)
+	}
+}
+
+func TestCollectLayerDBUnreadableFallsBack(t *testing.T) {
+	c := collector(newFake(), fakeFS{})
+	c.ldb = fakeLayerDB{err: &fs.PathError{Op: "open", Path: "/var/lib/docker/image", Err: fs.ErrPermission}}
+	inv, err := c.Collect(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if inv.LayerSizes != "inferred" || layerSize(inv, base) != 100 {
+		t.Errorf("source=%s base=%d, want inference after a permission error", inv.LayerSizes, layerSize(inv, base))
 	}
 }

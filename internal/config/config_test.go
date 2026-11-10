@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestParseEmptyIsDefault(t *testing.T) {
@@ -164,6 +165,50 @@ func TestParseHostsRejects(t *testing.T) {
 		"unknown host field": "hosts:\n  a: {url: ssh://h, user: x}\n",
 	}
 	for name, data := range tests {
+		if _, err := Parse([]byte(data)); err == nil {
+			t.Errorf("%s: expected an error", name)
+		}
+	}
+}
+
+func TestParseGC(t *testing.T) {
+	cfg, err := Parse([]byte(`
+gc:
+  stopped_container_retention: 0
+  protected_tags: ["*:prod", "registry.local/*"]
+  project_retention: false
+  build_cache_retention: 2w
+  review: {recent: 36h, large: 5GB}
+  weights: {age: 0.9}
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	g := cfg.GC
+	if g.StoppedContainerRetention != 0 || g.ProjectRetention || g.BuildCacheRetention != 14*24*time.Hour {
+		t.Errorf("roots = %+v", g)
+	}
+	if !reflect.DeepEqual(g.ProtectedTags, []string{"*:prod", "registry.local/*"}) {
+		t.Errorf("protected tags = %v", g.ProtectedTags)
+	}
+	if g.ReviewRecent != 36*time.Hour || g.ReviewLarge != 5e9 {
+		t.Errorf("review = %v / %d", g.ReviewRecent, g.ReviewLarge)
+	}
+	if g.Weights.Age != 0.9 || g.Weights.Reclaim != 0.5 {
+		t.Errorf("weights = %+v, want age overridden and the rest default", g.Weights)
+	}
+	if cfg.GC.Version() == Default().GC.Version() {
+		t.Error("a different policy must have a different version")
+	}
+}
+
+func TestParseGCRejects(t *testing.T) {
+	for name, data := range map[string]string{
+		"bad duration":    "gc:\n  build_cache_retention: soon\n",
+		"negative weight": "gc:\n  weights: {age: -1}\n",
+		"unknown key":     "gc:\n  retention: 7d\n",
+		"empty tag":       "gc:\n  protected_tags: ['']\n",
+	} {
 		if _, err := Parse([]byte(data)); err == nil {
 			t.Errorf("%s: expected an error", name)
 		}

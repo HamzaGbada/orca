@@ -32,6 +32,26 @@ volumes:
   # Docker Compose project name).
   protected_projects: []
 
+# Garbage-collection planner (orca plan). Nothing is ever deleted by a plan.
+gc:
+  # Policy roots: resources they keep are never candidates. "0" or [] turns
+  # a policy root off.
+  stopped_container_retention: 7d  # keep stopped containers used within this window
+  protected_tags:                  # keep images whose repository:tag matches
+    - "*:latest"                   # (* matches any characters, including "/")
+  project_retention: true          # keep projects whose com.orca.retention has not elapsed
+  build_cache_retention: 7d        # keep build cache used within this window
+  # Unreachable resources go to REVIEW instead of SAFE when:
+  review:
+    recent: 24h                    # created or used within this window
+    large: 10GB                    # they would free at least this much
+  # Ranking only; a score never changes a classification.
+  weights:
+    reclaim: 0.5
+    age: 0.3
+    activity: 0.2
+    ambiguity: 0.3
+
 # Named Docker daemons, used with --host <name> (none by default). See
 # docs/remote.md.
 # hosts:

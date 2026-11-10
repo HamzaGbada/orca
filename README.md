@@ -8,9 +8,9 @@ containers, volumes, build cache, logs), work out what is safe and worthwhile
 to reclaim, explain every decision, and reclaim space only through Docker's own
 APIs.
 
-> **Status: v0.1 (storage explorer).** Orca is a read-only inspection tool.
-> It cannot delete, modify or write anything in Docker-managed storage.
-> Garbage collection (plan, review, execute) comes in later versions.
+> **Status: GC planner.** Orca computes an explained garbage-collection plan
+> (`orca plan`) but cannot delete, modify or write anything in
+> Docker-managed storage. Executing plans comes in a later version.
 
 ## Install
 
@@ -57,6 +57,10 @@ orca <command> [flags]
   inventory   Full resource inventory as JSON
   graph       Dependency graph: interactive HTML page (default), JSON or DOT
                                          [--format html|json|dot] [-o <file>] [--open]
+  plan        GC plan: what could be reclaimed, what is protected, and why [--details]
+  plan diff   Compare two saved plans          <old.json> <new.json>
+  gc          Same as plan with --dry-run (this version cannot delete)
+  explain     Why a resource is or is not a candidate   <resource> [--why-not]
   version     Print the Orca version
 
 Common flags: --host <host>     daemon URL (unix://, tcp://, ssh://) or a name from the
@@ -69,6 +73,10 @@ Common flags: --host <host>     daemon URL (unix://, tcp://, ssh://) or a name f
 Examples:
 
 ```sh
+orca plan                               # what could be reclaimed, by class, with totals
+orca plan --details                     # every candidate, its score and main reason
+orca explain postgres:16 --why-not      # why is this image (not) a candidate?
+orca plan --json > plan.json            # save a plan; compare later with orca plan diff
 orca report                             # what Docker uses and what could be reclaimed
 orca report --summary                   # the short version
 orca volumes --sort size                # every volume, largest first: kind, safety state, reason
@@ -104,6 +112,9 @@ volumes:
   protected_paths:    [/var/lib/postgresql, /var/lib/mysql]
   protected_patterns: ["*_production", "*_backup"]
   protected_projects: []
+gc:                                      # the planner; every key in configs/example.yaml
+  stopped_container_retention: 7d
+  protected_tags: ["*:latest"]
 hosts:                                   # optional: --host <name>, see docs/remote.md
   prod: { url: ssh://admin@prod.example.com }
 ```
@@ -147,6 +158,8 @@ Docker driver is limited to read-only API calls, and a test enforces this
 
 - [`docs/install.md`](docs/install.md): installing, verifying, upgrading, uninstalling
 - [`docs/releasing.md`](docs/releasing.md): the release pipeline (maintainers)
+- [`docs/gc-planning.md`](docs/gc-planning.md): how the GC plan is computed (roots, classes, reclaim, scoring, plan format)
+- [`docs/deletion-strategy.md`](docs/deletion-strategy.md): every deletion strategy, implemented and planned, explained in plain terms
 - [`docs/storage-model.md`](docs/storage-model.md): Docker storage internals, as observed
 - [`docs/labels.md`](docs/labels.md): the `com.orca.*` / `orca.gc.*` labels
 - [`docs/volumes.md`](docs/volumes.md): the volume safety model

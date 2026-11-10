@@ -29,6 +29,10 @@ type Engine interface {
 	// ImageLayers returns the layer identity data of a single image.
 	ImageLayers(ctx context.Context, imageID string) (ImageLayers, error)
 
+	// ImageHistory returns the size of each build step of an image, oldest
+	// first (`docker history`). Steps that created no layer have size 0.
+	ImageHistory(ctx context.Context, imageID string) ([]int64, error)
+
 	// ContainerDetails returns the runtime details of one container that
 	// the container list does not include.
 	ContainerDetails(ctx context.Context, containerID string) (ContainerDetails, error)
@@ -83,6 +87,19 @@ type DaemonInfo struct {
 // data root is on this host's filesystem.
 func (d DaemonInfo) Local() bool {
 	return strings.HasPrefix(d.Host, "unix://")
+}
+
+// ContainerdImageStore reports whether the daemon uses the containerd image
+// store, which it reports as DriverStatus ["driver-type",
+// "io.containerd.snapshotter.v1"]. Layers then live in containerd's
+// snapshotter instead of the classic graph driver and layer database.
+func (d DaemonInfo) ContainerdImageStore() bool {
+	for _, kv := range d.DriverStatus {
+		if kv[0] == "driver-type" && strings.HasPrefix(kv[1], "io.containerd.snapshotter") {
+			return true
+		}
+	}
+	return false
 }
 
 type Container struct {

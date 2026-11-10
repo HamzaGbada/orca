@@ -13,6 +13,7 @@ import (
 	"github.com/HamzaGbada/orca/internal/drivers/docker"
 	"github.com/HamzaGbada/orca/internal/drivers/filesystem"
 	"github.com/HamzaGbada/orca/internal/modules/discovery"
+	"github.com/HamzaGbada/orca/internal/modules/gc"
 	"github.com/HamzaGbada/orca/internal/modules/inventory"
 	"github.com/HamzaGbada/orca/internal/modules/layers"
 	"github.com/HamzaGbada/orca/internal/modules/storage"
@@ -36,15 +37,17 @@ func Connect(ctx context.Context, opts cli.Options) (*cli.Services, error) {
 		return nil, err
 	}
 	fs := filesystem.Measurer{}
+	collector := inventory.NewCollector(dc, fs, filesystem.LayerDB{}, inventory.Options{
+		Disk:          cfg.Disk,
+		LargeLogBytes: cfg.LargeLogBytes,
+		Volumes:       cfg.Volumes,
+	})
 	return &cli.Services{
-		Discovery: discovery.NewService(dc),
-		Layers:    layers.NewService(dc),
-		Storage:   storage.NewService(dc, fs),
-		Inventory: inventory.NewCollector(dc, fs, inventory.Options{
-			Disk:          cfg.Disk,
-			LargeLogBytes: cfg.LargeLogBytes,
-			Volumes:       cfg.Volumes,
-		}),
+		Discovery:    discovery.NewService(dc),
+		Layers:       layers.NewService(dc),
+		Storage:      storage.NewService(dc, fs),
+		Inventory:    collector,
+		GC:           gc.NewService(collector, cfg.GC),
 		ConfigSource: cfg.Source,
 		Close:        dc.Close,
 	}, nil

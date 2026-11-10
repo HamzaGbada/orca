@@ -11,6 +11,7 @@ import (
 
 	"github.com/HamzaGbada/orca/internal/extensions/engine"
 	"github.com/HamzaGbada/orca/internal/extensions/fsmeasure"
+	"github.com/HamzaGbada/orca/internal/extensions/layerstore"
 	"github.com/HamzaGbada/orca/internal/modules/discovery"
 	"github.com/HamzaGbada/orca/internal/modules/layers"
 	"github.com/HamzaGbada/orca/internal/modules/pressure"
@@ -34,12 +35,13 @@ type Options struct {
 type Collector struct {
 	engine engine.Engine
 	fs     fsmeasure.Measurer
+	ldb    layerstore.Reader
 	opts   Options
 	now    func() time.Time
 }
 
-func NewCollector(e engine.Engine, m fsmeasure.Measurer, opts Options) *Collector {
-	return &Collector{engine: e, fs: m, opts: opts, now: time.Now}
+func NewCollector(e engine.Engine, m fsmeasure.Measurer, ldb layerstore.Reader, opts Options) *Collector {
+	return &Collector{engine: e, fs: m, ldb: ldb, opts: opts, now: time.Now}
 }
 
 // Collect takes one snapshot. Docker has no transactional API, so the
@@ -82,12 +84,13 @@ func (c *Collector) collectOnce(ctx context.Context) (Inventory, error) {
 		return inv, err
 	}
 	inv.Host = Host{
-		Address:       info.Host,
-		ServerVersion: info.ServerVersion,
-		APIVersion:    info.APIVersion,
-		StorageDriver: info.StorageDriver,
-		DataRoot:      info.DataRoot,
-		LoggingDriver: info.LoggingDriver,
+		Address:         info.Host,
+		ServerVersion:   info.ServerVersion,
+		APIVersion:      info.APIVersion,
+		StorageDriver:   info.StorageDriver,
+		DataRoot:        info.DataRoot,
+		LoggingDriver:   info.LoggingDriver,
+		ContainerdStore: info.ContainerdImageStore(),
 	}
 
 	rawContainers, err := c.engine.Containers(ctx, true)
@@ -120,7 +123,11 @@ func (c *Collector) collectOnce(ctx context.Context) (Inventory, error) {
 	if inv.Containers, err = c.containers(ctx, rawContainers, info.Local(), inv.CollectedAt, w); err != nil {
 		return inv, err
 	}
-	if inv.Images, inv.Layers, err = c.images(ctx, rawImages, rawContainers); err != nil {
+	var sets []engine.ImageLayers
+	if inv.Images, inv.Layers, sets, err = c.images(ctx, rawImages, rawContainers); err != nil {
+		return inv, err
+	}
+	if inv.LayerSizes, err = c.layerSizes(ctx, info, rawImages, sets, inv.Layers, w); err != nil {
 		return inv, err
 	}
 	inv.Volumes = c.volumes(ctx, rawVolumes, volumeUsage, inv.Containers, info.Local(), w)
@@ -208,12 +215,14 @@ func (c *Collector) measureLog(ctx context.Context, l *Log, local bool, w *warni
 	}
 }
 
-func (c *Collector) images(ctx context.Context, raw []engine.Image, containers []engine.Container) ([]Image, []*layers.Layer, error) {
+// images classifies images and indexes their layers. The returned layer
+// sets are in the same order as raw.
+func (c *Collector) images(ctx context.Context, raw []engine.Image, containers []engine.Container) ([]Image, []*layers.Layer, []engine.ImageLayers, error) {
 	sets := make([]engine.ImageLayers, 0, len(raw))
 	for _, img := range raw {
 		set, err := c.engine.ImageLayers(ctx, img.ID)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 		sets = append(sets, set)
 	}
@@ -233,7 +242,59 @@ func (c *Collector) images(ctx context.Context, raw []engine.Image, containers [
 			UniqueSize: unique,
 		})
 	}
-	return out, idx.All(), nil
+	return out, idx.All(), sets, nil
+}
+
+// layerSizes fills Layer.Size: exactly from the layer database when it is
+// readable (root, local classic store), otherwise by inference from image
+// sizes and histories. Layers that cannot be sized keep -1.
+func (c *Collector) layerSizes(ctx context.Context, info engine.DaemonInfo, raw []engine.Image, sets []engine.ImageLayers,
+	ls []*layers.Layer, w *warnings) (string, error) {
+	if info.ContainerdImageStore() {
+		w.add("layer sizes unavailable with the containerd image store; reclaim of layers shared between candidates is not counted")
+		return "unavailable", nil
+	}
+	chainIDs := make([]string, len(ls))
+	for i, l := range ls {
+		chainIDs[i] = l.ChainID
+	}
+
+	known := map[string]int64{}
+	if info.Local() && c.ldb != nil {
+		sizes, err := c.ldb.LayerSizes(ctx, info.DataRoot, info.StorageDriver, chainIDs)
+		switch {
+		case err == nil:
+			known = sizes
+		case ctx.Err() != nil:
+			return "", ctx.Err()
+		}
+	}
+	source := "layerdb"
+	if len(known) < len(ls) {
+		// sets[i] belongs to raw[i] (see images).
+		facts := make([]layers.SizeFacts, 0, len(raw))
+		for i, img := range raw {
+			hist, err := c.engine.ImageHistory(ctx, img.ID)
+			if err != nil {
+				return "", err
+			}
+			facts = append(facts, layers.SizeFacts{DiffIDs: sets[i].DiffIDs, Size: img.Size, History: hist})
+		}
+		known = layers.InferSizes(facts, known)
+		source = "inferred"
+	}
+
+	sized := 0
+	for _, l := range ls {
+		if s, ok := known[l.ChainID]; ok {
+			l.Size = s
+			sized++
+		}
+	}
+	if sized < len(ls) {
+		w.add(fmt.Sprintf("%d of %d layer sizes known; reclaim of layers shared between candidates is a lower bound (run as root for exact figures)", sized, len(ls)))
+	}
+	return source, nil
 }
 
 func (c *Collector) volumes(ctx context.Context, raw []engine.Volume, usage map[string]engine.VolumeUsage,

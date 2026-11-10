@@ -26,6 +26,7 @@ var readOnlyDockerCalls = map[string]bool{
 	"ImageList":        true,
 	"ImageInspect":     true,
 	"ContainerInspect": true,
+	"ImageHistory":     true,
 	"VolumeList":       true,
 	"NetworkList":      true,
 	"DiskUsage":        true,

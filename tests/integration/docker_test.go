@@ -23,6 +23,7 @@ import (
 	"github.com/HamzaGbada/orca/internal/drivers/filesystem"
 	"github.com/HamzaGbada/orca/internal/extensions/engine"
 	"github.com/HamzaGbada/orca/internal/modules/discovery"
+	"github.com/HamzaGbada/orca/internal/modules/gc"
 	"github.com/HamzaGbada/orca/internal/modules/graph"
 	"github.com/HamzaGbada/orca/internal/modules/inventory"
 	"github.com/HamzaGbada/orca/internal/modules/layers"
@@ -144,7 +145,7 @@ func TestLayerIndex(t *testing.T) {
 func collect(t *testing.T) inventory.Inventory {
 	t.Helper()
 	cfg := config.Default()
-	c := inventory.NewCollector(connect(t), filesystem.Measurer{}, inventory.Options{
+	c := inventory.NewCollector(connect(t), filesystem.Measurer{}, filesystem.LayerDB{}, inventory.Options{
 		Disk: cfg.Disk, LargeLogBytes: cfg.LargeLogBytes, Volumes: cfg.Volumes,
 	})
 	inv, err := c.Collect(context.Background())
@@ -278,7 +279,7 @@ func TestInventoryOverSSHSkipsLocalDisk(t *testing.T) {
 	defer c.Close()
 
 	cfg := config.Default()
-	inv, err := inventory.NewCollector(c, filesystem.Measurer{}, inventory.Options{
+	inv, err := inventory.NewCollector(c, filesystem.Measurer{}, filesystem.LayerDB{}, inventory.Options{
 		Disk: cfg.Disk, LargeLogBytes: cfg.LargeLogBytes, Volumes: cfg.Volumes,
 	}).Collect(context.Background())
 	if err != nil {
@@ -287,4 +288,51 @@ func TestInventoryOverSSHSkipsLocalDisk(t *testing.T) {
 	if inv.Disk != nil || inv.Host.Address != "ssh://fake-host" {
 		t.Errorf("remote inventory: disk=%v address=%q; the local disk must not be measured", inv.Disk, inv.Host.Address)
 	}
+}
+
+// The GC plan of the live host must respect the planner's invariants.
+func TestPlanInvariants(t *testing.T) {
+	inv := collect(t)
+	a, err := gc.Analyze(inv, config.Default().GC)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := a.Plan
+	for _, w := range p.Warnings {
+		if strings.Contains(w, "BUG") {
+			t.Errorf("plan warning: %s", w)
+		}
+	}
+	var images int64
+	for _, c := range p.Candidates {
+		if len(c.Reasons) == 0 {
+			t.Errorf("%s has no reason", c.ID)
+		}
+		if c.Class == gc.Safe || c.Class == gc.Review {
+			if c.Type == gc.Image {
+				images += c.ReclaimableSize
+			}
+		} else if c.ReclaimableSize != 0 {
+			t.Errorf("%s is %s but plans to reclaim %d", c.ID, c.Class, c.ReclaimableSize)
+		}
+		if _, err := a.Explain(c.ID); err != nil {
+			t.Errorf("explain %s: %v", c.ID, err)
+		}
+	}
+	images += p.Totals.SharedLayersSafeAndReview
+	if images > inv.ImagesSize {
+		t.Errorf("image reclaim %d exceeds Docker's image total %d", images, inv.ImagesSize)
+	}
+	if p.Totals.Safe > p.Totals.SafeAndReview {
+		t.Errorf("SAFE total %d exceeds SAFE+REVIEW %d", p.Totals.Safe, p.Totals.SafeAndReview)
+	}
+
+	again, err := gc.Analyze(inv, config.Default().GC)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d := gc.DiffPlans(p, again.Plan); !d.Empty() {
+		t.Errorf("same inventory, different plan: %+v", d)
+	}
+	t.Logf("%d candidates; SAFE %d bytes (exact=%t); layer sizes: %s", len(p.Candidates), p.Totals.Safe, p.Totals.SafeExact, inv.LayerSizes)
 }

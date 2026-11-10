@@ -13,10 +13,12 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/HamzaGbada/orca/internal/extensions/engine"
 	"github.com/HamzaGbada/orca/internal/modules/discovery"
+	"github.com/HamzaGbada/orca/internal/modules/gc"
 	"github.com/HamzaGbada/orca/internal/modules/inventory"
 	"github.com/HamzaGbada/orca/internal/modules/layers"
 	"github.com/HamzaGbada/orca/internal/modules/storage"
@@ -43,6 +45,7 @@ type Services struct {
 	Layers    *layers.Service
 	Storage   *storage.Service
 	Inventory *inventory.Collector
+	GC        *gc.Service
 	// ConfigSource is the configuration file in use, "" for defaults.
 	ConfigSource string
 	Close        func() error
@@ -64,6 +67,11 @@ type command struct {
 	summary string
 	// flags registers command-specific flags and returns the action to run.
 	flags func(fs *flag.FlagSet) func(ctx context.Context, env *env) error
+	// args names the positional arguments, e.g. "<resource>"; the command
+	// requires exactly that many.
+	args []string
+	// offline commands do not connect to Docker (e.g. comparing plan files).
+	offline bool
 }
 
 type env struct {
@@ -71,19 +79,25 @@ type env struct {
 	stdout io.Writer
 	stderr io.Writer
 	json   bool
+	args   []string
 }
 
 var commands = []command{
-	{"info", "Show Docker daemon connection and server information", infoCmd},
-	{"containers", "List containers", containersCmd},
-	{"images", "List images and their classification", imagesCmd},
-	{"volumes", "List volumes with their safety classification", volumesCmd},
-	{"networks", "List networks", networksCmd},
-	{"layers", "Show image layers, ChainIDs and shared layers", layersCmd},
-	{"storage", "Show storage driver, data root and overlay2 usage", storageCmd},
-	{"report", "Show the storage report and potential reclaim", reportCmd},
-	{"inventory", "Write the full resource inventory as JSON", inventoryCmd},
-	{"graph", "Write the dependency graph as an interactive HTML page, JSON or DOT", graphCmd},
+	{name: "info", summary: "Show Docker daemon connection and server information", flags: infoCmd},
+	{name: "containers", summary: "List containers", flags: containersCmd},
+	{name: "images", summary: "List images and their classification", flags: imagesCmd},
+	{name: "volumes", summary: "List volumes with their safety classification", flags: volumesCmd},
+	{name: "networks", summary: "List networks", flags: networksCmd},
+	{name: "layers", summary: "Show image layers, ChainIDs and shared layers", flags: layersCmd},
+	{name: "storage", summary: "Show storage driver, data root and overlay2 usage", flags: storageCmd},
+	{name: "report", summary: "Show the storage report and potential reclaim", flags: reportCmd},
+	{name: "inventory", summary: "Write the full resource inventory as JSON", flags: inventoryCmd},
+	{name: "graph", summary: "Write the dependency graph as an interactive HTML page, JSON or DOT", flags: graphCmd},
+	{name: "plan", summary: "Show the GC plan: what could be reclaimed and why (dry-run)", flags: planCmd},
+	{name: "plan diff", summary: "Compare two saved plans (orca plan --json > file)", flags: planDiffCmd,
+		args: []string{"<old.json>", "<new.json>"}, offline: true},
+	{name: "gc", summary: "Garbage collection; this version only supports --dry-run", flags: gcCmd},
+	{name: "explain", summary: "Explain why a resource is or is not a GC candidate", flags: explainCmd, args: []string{"<resource>"}},
 }
 
 // Run executes the command line args (without the program name) and returns
@@ -104,7 +118,13 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer, connect C
 	}
 
 	var cmd *command
+	rest := args[1:]
 	for i := range commands {
+		// Two-word commands ("plan diff") take precedence.
+		if len(args) > 1 && commands[i].name == args[0]+" "+args[1] {
+			cmd, rest = &commands[i], args[2:]
+			break
+		}
 		if commands[i].name == args[0] {
 			cmd = &commands[i]
 		}
@@ -123,24 +143,41 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer, connect C
 	asJSON := fs.Bool("json", false, "write JSON to stdout")
 	action := cmd.flags(fs)
 
-	if err := fs.Parse(args[1:]); err != nil {
-		if errors.Is(err, flag.ErrHelp) {
-			return exitOK
+	// Flags may come before or after positional arguments
+	// (orca explain web --why-not).
+	var positional []string
+	for {
+		if err := fs.Parse(rest); err != nil {
+			if errors.Is(err, flag.ErrHelp) {
+				return exitOK
+			}
+			return exitUsage
+		}
+		if fs.NArg() == 0 {
+			break
+		}
+		positional = append(positional, fs.Arg(0))
+		rest = fs.Args()[1:]
+	}
+	if len(positional) != len(cmd.args) {
+		if len(cmd.args) == 0 {
+			fmt.Fprintf(stderr, "orca %s: unexpected argument %q\n", cmd.name, positional[0])
+		} else {
+			fmt.Fprintf(stderr, "orca %s: expected %s\n", cmd.name, strings.Join(cmd.args, " "))
 		}
 		return exitUsage
 	}
-	if fs.NArg() > 0 {
-		fmt.Fprintf(stderr, "orca %s: unexpected argument %q\n", cmd.name, fs.Arg(0))
-		return exitUsage
-	}
 
-	svc, err := connect(ctx, Options{Host: *host, Timeout: *timeout, ConfigPath: *configPath})
-	if err != nil {
-		return fail(ctx, stderr, err)
+	e := &env{stdout: stdout, stderr: stderr, json: *asJSON, args: positional}
+	if !cmd.offline {
+		svc, err := connect(ctx, Options{Host: *host, Timeout: *timeout, ConfigPath: *configPath})
+		if err != nil {
+			return fail(ctx, stderr, err)
+		}
+		defer svc.Close()
+		e.svc = svc
 	}
-	defer svc.Close()
-
-	if err := action(ctx, &env{svc: svc, stdout: stdout, stderr: stderr, json: *asJSON}); err != nil {
+	if err := action(ctx, e); err != nil {
 		return fail(ctx, stderr, err)
 	}
 	return exitOK

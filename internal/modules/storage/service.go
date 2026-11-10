@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io/fs"
 	"path/filepath"
-	"strings"
 
 	"github.com/HamzaGbada/orca/internal/extensions/engine"
 	"github.com/HamzaGbada/orca/internal/extensions/fsmeasure"
@@ -87,7 +86,7 @@ func (s *Service) Inspect(ctx context.Context, measure bool) (Report, error) {
 		Driver:                info.StorageDriver,
 		DriverStatus:          info.DriverStatus,
 		DataRoot:              info.DataRoot,
-		ContainerdSnapshotter: usesContainerdSnapshotter(info.DriverStatus),
+		ContainerdSnapshotter: info.ContainerdImageStore(),
 		API:                   usage,
 	}
 	r.Overlay2 = r.Driver == "overlay2" && !r.ContainerdSnapshotter
@@ -116,15 +115,4 @@ func (s *Service) Inspect(ctx context.Context, measure bool) (Report, error) {
 		}
 	}
 	return r, nil
-}
-
-// usesContainerdSnapshotter detects the containerd image store, which the
-// daemon reports as DriverStatus ["driver-type", "io.containerd.snapshotter.v1"].
-func usesContainerdSnapshotter(status [][2]string) bool {
-	for _, kv := range status {
-		if kv[0] == "driver-type" && strings.HasPrefix(kv[1], "io.containerd.snapshotter") {
-			return true
-		}
-	}
-	return false
 }

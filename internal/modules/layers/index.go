@@ -19,6 +19,8 @@ type Layer struct {
 	StorageDirs []string
 	// Images are the IDs of every image record that includes this layer.
 	Images []string
+	// Size is the layer's size in bytes; -1 when unknown (see InferSizes).
+	Size int64
 }
 
 // RefCount is the number of image records that include the layer.
@@ -53,7 +55,7 @@ func BuildIndex(sets []engine.ImageLayers) Index {
 		for i, chainID := range chain {
 			l, ok := idx.Layers[chainID]
 			if !ok {
-				l = &Layer{ChainID: chainID, DiffID: set.DiffIDs[i], Depth: i + 1}
+				l = &Layer{ChainID: chainID, DiffID: set.DiffIDs[i], Depth: i + 1, Size: -1}
 				idx.Layers[chainID] = l
 			}
 			if len(set.StorageDirs) == len(chain) {

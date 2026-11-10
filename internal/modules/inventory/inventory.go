@@ -29,6 +29,10 @@ type Inventory struct {
 	// ImagesSize is the engine's total of image layer bytes, each layer
 	// counted once (the "Images" size of `docker system df`).
 	ImagesSize int64
+	// LayerSizes says where layer sizes came from: "layerdb" (exact, read
+	// from the daemon's layer database), "inferred" (exact for the layers
+	// that could be derived, unknown for the rest) or "unavailable".
+	LayerSizes string
 
 	Containers []Container
 	Images     []Image
@@ -52,6 +56,8 @@ type Host struct {
 	StorageDriver string
 	DataRoot      string
 	LoggingDriver string
+	// ContainerdStore is true for the containerd image store.
+	ContainerdStore bool
 }
 
 type Container struct {

@@ -280,3 +280,16 @@ func (c *Client) BuildCache(ctx context.Context) ([]engine.CacheRecord, error) {
 	}
 	return out, nil
 }
+
+func (c *Client) ImageHistory(ctx context.Context, imageID string) ([]int64, error) {
+	res, err := c.api.ImageHistory(ctx, imageID)
+	if err != nil {
+		return nil, fmt.Errorf("image history %s: %w", imageID, notFound(err))
+	}
+	// The API lists the newest step first.
+	sizes := make([]int64, len(res.Items))
+	for i, h := range res.Items {
+		sizes[len(res.Items)-1-i] = h.Size
+	}
+	return sizes, nil
+}

@@ -18,12 +18,15 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/docker/go-units"
 	"go.yaml.in/yaml/v3"
 
+	"github.com/HamzaGbada/orca/internal/modules/gc"
 	"github.com/HamzaGbada/orca/internal/modules/pressure"
 	"github.com/HamzaGbada/orca/internal/modules/volumes"
+	"github.com/HamzaGbada/orca/internal/shared/duration"
 )
 
 // DefaultLargeLogBytes is the log size above which a container log is
@@ -40,6 +43,8 @@ type Config struct {
 	Volumes       volumes.Policy
 	// Hosts are named Docker daemons, selected with --host <name>.
 	Hosts map[string]Host
+	// GC configures the garbage-collection planner (orca plan).
+	GC gc.Policy
 }
 
 // Host is a named Docker daemon.
@@ -61,6 +66,7 @@ func Default() Config {
 			ProtectedPatterns: append([]string{}, volumes.DefaultPolicy.ProtectedPatterns...),
 			ProtectedProjects: append([]string{}, volumes.DefaultPolicy.ProtectedProjects...),
 		},
+		GC: gc.DefaultPolicy(),
 	}
 }
 
@@ -79,6 +85,22 @@ type file struct {
 		ProtectedProjects *[]string `yaml:"protected_projects"`
 	} `yaml:"volumes"`
 	Hosts map[string]Host `yaml:"hosts"`
+	GC    *struct {
+		StoppedContainerRetention *dur      `yaml:"stopped_container_retention"`
+		ProtectedTags             *[]string `yaml:"protected_tags"`
+		ProjectRetention          *bool     `yaml:"project_retention"`
+		BuildCacheRetention       *dur      `yaml:"build_cache_retention"`
+		Review                    *struct {
+			Recent *dur  `yaml:"recent"`
+			Large  *size `yaml:"large"`
+		} `yaml:"review"`
+		Weights *struct {
+			Reclaim   *float64 `yaml:"reclaim"`
+			Age       *float64 `yaml:"age"`
+			Activity  *float64 `yaml:"activity"`
+			Ambiguity *float64 `yaml:"ambiguity"`
+		} `yaml:"weights"`
+	} `yaml:"gc"`
 }
 
 // Load reads the configuration. An explicit path must exist; without one,
@@ -147,6 +169,25 @@ func Parse(data []byte) (Config, error) {
 		return Config{}, fmt.Errorf("logs.large_threshold must be positive")
 	}
 	if err := cfg.Volumes.Validate(); err != nil {
+		return Config{}, err
+	}
+	if g := f.GC; g != nil {
+		setIf(&cfg.GC.StoppedContainerRetention, (*time.Duration)(g.StoppedContainerRetention))
+		setIf(&cfg.GC.ProtectedTags, g.ProtectedTags)
+		setIf(&cfg.GC.ProjectRetention, g.ProjectRetention)
+		setIf(&cfg.GC.BuildCacheRetention, (*time.Duration)(g.BuildCacheRetention))
+		if r := g.Review; r != nil {
+			setIf(&cfg.GC.ReviewRecent, (*time.Duration)(r.Recent))
+			setIf(&cfg.GC.ReviewLarge, (*int64)(r.Large))
+		}
+		if w := g.Weights; w != nil {
+			setIf(&cfg.GC.Weights.Reclaim, w.Reclaim)
+			setIf(&cfg.GC.Weights.Age, w.Age)
+			setIf(&cfg.GC.Weights.Activity, w.Activity)
+			setIf(&cfg.GC.Weights.Ambiguity, w.Ambiguity)
+		}
+	}
+	if err := cfg.GC.Validate(); err != nil {
 		return Config{}, err
 	}
 	if len(f.Hosts) > 0 {
@@ -239,6 +280,18 @@ func (p *percent) UnmarshalYAML(n *yaml.Node) error {
 		return fmt.Errorf("line %d: invalid percentage %q", n.Line, n.Value)
 	}
 	*p = percent(v)
+	return nil
+}
+
+// dur accepts "7d", "2w", "24h", "0" (see duration.Parse).
+type dur time.Duration
+
+func (d *dur) UnmarshalYAML(n *yaml.Node) error {
+	v, err := duration.Parse(n.Value)
+	if err != nil {
+		return fmt.Errorf("line %d: %v", n.Line, err)
+	}
+	*d = dur(v)
 	return nil
 }
 

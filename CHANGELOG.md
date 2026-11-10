@@ -5,6 +5,39 @@ All notable changes to Orca. The format follows
 [Semantic Versioning](https://semver.org/). Until 1.0.0, minor versions may
 change CLI output and JSON fields.
 
+## [Unreleased]
+
+GC planning (Sprint 2). Still read-only: no command can delete or modify
+anything.
+
+### Added
+
+- `orca plan` (also `orca gc --dry-run`): the garbage-collection plan.
+  - **GC roots:** running containers and protected resources; policy roots
+    (stopped-container retention, protected tags such as `*:latest`, project
+    retention, recent build cache).
+  - **Mark phase** over the dependency graph.
+  - **Classes:** every resource is SAFE, REVIEW, PROTECTED or EXTERNAL, with
+    plain-English reasons.
+  - **Reclaim:** exclusive and shared layers, never double-counted;
+    "at least" when sizes need root.
+  - **Ranking:** deterministic scores and an efficiency metric.
+  - `--details` lists every candidate; `--json` writes the plan
+    (`orca.plan/v1`).
+- `orca plan diff old.json new.json`: compare two saved plans (offline).
+- `orca explain <resource> [--why-not]`: the full reasoning for one
+  resource, including the root and path that keep it.
+- `gc:` configuration section: retentions, protected tags, review
+  thresholds, score weights.
+- Per-layer sizes in the inventory: exact from the layer database as root,
+  inferred otherwise (`LayerSizes`).
+- Tests that enforce read-only behaviour for every command.
+
+### Changed
+
+- `orca gc` without `--dry-run` exits with a usage error: this version
+  cannot delete.
+
 ## [0.2.1] - 2026-09-24
 
 ### Changed
